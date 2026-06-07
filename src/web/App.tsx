@@ -99,16 +99,18 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
   const tricks = gs.tricksWon[seat]!;
   const score  = gs.scores[seat]!;
   const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
+  const isHuman = seat === HUMAN;
 
   return (
     <div className={[
       'badge',
       isActive ? 'badge--active' : '',
-      seat === HUMAN ? 'badge--you' : '',
+      isHuman ? 'badge--you' : '',
     ].filter(Boolean).join(' ')}>
       <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
-      <div className="badge__bid-row">{bidStr} · {tricks}</div>
+      <div className="badge__bid-row">bid {bidStr}</div>
+      <div className="badge__won-row">{tricks} won</div>
     </div>
   );
 }
@@ -380,6 +382,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
       </div>
 
       <div className="table__body">
+        {/* Left/top: felt with opponents and trick */}
         <div className="felt">
           <div className="seat seat--north">
             <Badge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
@@ -396,6 +399,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
           </div>
         </div>
 
+        {/* Right/bottom: status + optional bid + hand */}
         <div className="panel">
           <div className="status-bar">
             <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
@@ -429,7 +433,7 @@ export default function App() {
   }, []);
 
   const handleBid = useCallback((bid: number) => {
-    navigator.vibrate?.(15);
+    navigator.vibrate?.(40);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
       const gs = cloneState(prev.gs);
@@ -439,7 +443,7 @@ export default function App() {
   }, []);
 
   const handlePlay = useCallback((card: Card) => {
-    navigator.vibrate?.(25);
+    navigator.vibrate?.(80);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.trickPause !== null) return prev;
       if (prev.gs.phase !== 'playing' || prev.gs.turn !== HUMAN) return prev;
