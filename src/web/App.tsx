@@ -124,21 +124,20 @@ function CardBack({ size }: { size?: 'sm' }) {
 //  PLAYER BADGE
 // ══════════════════════════════════════════════
 function PlayerBadge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: boolean }) {
-  const name   = SEAT_NAMES[seat]!;
-  const bid    = gs.bids[seat];
-  const tricks = gs.tricksWon[seat]!;
-  const score  = gs.scores[seat]!;
+  const name    = SEAT_NAMES[seat]!;
+  const bid     = gs.bids[seat];
+  const tricks  = gs.tricksWon[seat]!;
+  const score   = gs.scores[seat]!;
   const isHuman = seat === HUMAN;
-
-  const bidStr = bid === null ? '—' : bid === 0 ? 'NIL' : String(bid);
+  const bidStr  = bid === null ? '—' : bid === 0 ? 'NIL' : String(bid);
 
   return (
     <div className={['badge', isHuman ? 'badge--human' : '', isActive ? 'badge--active' : ''].filter(Boolean).join(' ')}>
       <div className="badge__name">{name}</div>
       <div className="badge__score">{score}</div>
-      <div className="badge__stats">
-        <span className="badge__stat badge__bid">bid:{bidStr}</span>
-        <span className="badge__stat">won:{tricks}</span>
+      <div className="badge__meta">
+        <span>bid {bidStr}</span>
+        <span>won {tricks}</span>
       </div>
     </div>
   );
@@ -158,11 +157,10 @@ function OppHand({ count }: { count: number }) {
 //  TRICK AREA
 // ══════════════════════════════════════════════
 function TrickArea({
-  gs, trickPause, spadesBroken,
+  gs, trickPause,
 }: {
   gs: GameState;
   trickPause: TrickPause | null;
-  spadesBroken: boolean;
 }) {
   const displayEntries = trickPause ? trickPause.entries : gs.trick;
   const winner = trickPause?.winner ?? null;
@@ -185,8 +183,9 @@ function TrickArea({
             </div>
           );
         })}
-        <div className="trick-info">
-          {spadesBroken ? '♠ broken' : '♠ not yet'}
+        <div className="trick-meta">
+          {gs.completedTricks}/{13}<br/>
+          {gs.spadesBroken ? '♠ broken' : '♠ not led'}
         </div>
       </div>
     </div>
@@ -241,16 +240,19 @@ function ThinkingDots() {
 // ══════════════════════════════════════════════
 function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
   return (
-    <div className="bid-grid">
-      {Array.from({ length: 14 }, (_, i) => (
-        <button
-          key={i}
-          className={`bid-btn ${i === 0 ? 'bid-btn--nil' : ''}`}
-          onClick={() => onBid(i)}
-        >
-          {i === 0 ? 'NIL' : i}
-        </button>
-      ))}
+    <div className="bid-panel">
+      <div className="bid-label">CHOOSE YOUR BID</div>
+      <div className="bid-grid">
+        {Array.from({ length: 14 }, (_, i) => (
+          <button
+            key={i}
+            className={`bid-btn ${i === 0 ? 'bid-btn--nil' : ''}`}
+            onClick={() => onBid(i)}
+          >
+            {i === 0 ? 'NIL' : i}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -408,33 +410,28 @@ function GameTable({
     <div className="table">
       <div className="table__header">
         <span>♠ Spades</span>
-        <span className="hand-no">Hand {gs.handNumber + 1} · First to 40</span>
-        <span>Scores: {gs.scores[HUMAN]}</span>
+        <span className="subtitle">Hand {gs.handNumber + 1} · First to 40</span>
+        <span className="score">You: {gs.scores[HUMAN]}</span>
       </div>
 
       <div className="table__felt">
-        {/* North */}
-        <div className="player player--north">
-          <OppHand count={gs.hands[2]!.length} />
-          <PlayerBadge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
-        </div>
-
-        {/* West */}
         <div className="player player--west">
           <OppHand count={gs.hands[3]!.length} />
           <PlayerBadge seat={3} gs={gs} isActive={gs.turn === 3 && !trickPause} />
         </div>
 
-        {/* Trick */}
-        <TrickArea gs={gs} trickPause={trickPause} spadesBroken={gs.spadesBroken} />
+        <div className="player player--north">
+          <OppHand count={gs.hands[2]!.length} />
+          <PlayerBadge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
+        </div>
 
-        {/* East */}
         <div className="player player--east">
           <OppHand count={gs.hands[1]!.length} />
           <PlayerBadge seat={1} gs={gs} isActive={gs.turn === 1 && !trickPause} />
         </div>
 
-        {/* South (human) */}
+        <TrickArea gs={gs} trickPause={trickPause} />
+
         <div className="player player--south">
           <PlayerBadge seat={HUMAN} gs={gs} isActive={isHumanBid || isHumanPlay} />
         </div>
@@ -445,21 +442,21 @@ function GameTable({
           <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
         </div>
 
-        {isHumanBid ? (
-          <BidSelector onBid={onBid} />
-        ) : (
-          <div className="hand">
-            {sortedHand.map(card => (
-              <PlayingCard
-                key={card}
-                card={card}
-                playable={isHumanPlay && legal.has(card)}
-                illegal={isHumanPlay && !legal.has(card)}
-                onClick={() => onPlay(card)}
-              />
-            ))}
-          </div>
-        )}
+        {/* Bid grid — visible above hand when it's your turn to bid */}
+        {isHumanBid && <BidSelector onBid={onBid} />}
+
+        {/* Hand — always visible so you can see your cards when bidding */}
+        <div className={`hand${isHumanBid ? ' hand--bidding' : ''}`}>
+          {sortedHand.map(card => (
+            <PlayingCard
+              key={card}
+              card={card}
+              playable={isHumanPlay && legal.has(card)}
+              illegal={isHumanPlay && !legal.has(card)}
+              onClick={isHumanPlay ? () => onPlay(card) : undefined}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
