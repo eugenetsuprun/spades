@@ -109,7 +109,8 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
     ].filter(Boolean).join(' ')}>
       <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
-      <div className="badge__bid-row">{bidStr} · {tricks}</div>
+      <div className="badge__bid-row">bid {bidStr}</div>
+      <div className="badge__won-row">{tricks} won</div>
     </div>
   );
 }
@@ -432,7 +433,7 @@ export default function App() {
   }, []);
 
   const handleBid = useCallback((bid: number) => {
-    navigator.vibrate?.(15);
+    navigator.vibrate?.(40);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
       const gs = cloneState(prev.gs);
@@ -442,7 +443,7 @@ export default function App() {
   }, []);
 
   const handlePlay = useCallback((card: Card) => {
-    navigator.vibrate?.(25);
+    navigator.vibrate?.(80);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.trickPause !== null) return prev;
       if (prev.gs.phase !== 'playing' || prev.gs.turn !== HUMAN) return prev;
