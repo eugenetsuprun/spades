@@ -95,25 +95,44 @@ function TrickCard({ card, winner }: { card: Card; winner: boolean }) {
 //  PLAYER BADGE
 // ══════════════════════════════════════════════
 function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: boolean }) {
-  const bid      = gs.bids[seat];
-  const tricks   = gs.tricksWon[seat]!;
-  const score    = gs.scores[seat]!;
-  const cardCount = gs.hands[seat]!.length;
-  const bidStr   = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
+  const bid    = gs.bids[seat];
+  const tricks = gs.tricksWon[seat]!;
+  const score  = gs.scores[seat]!;
+  const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
+  const isHuman = seat === HUMAN;
 
   return (
     <div className={[
       'badge',
       isActive ? 'badge--active' : '',
-      seat === HUMAN ? 'badge--you' : '',
+      isHuman ? 'badge--you' : '',
     ].filter(Boolean).join(' ')}>
       <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
-      <div className="badge__info">
-        {seat !== HUMAN && <span>{cardCount}c</span>}
-        <span>bid {bidStr}</span>
-        <span>won {tricks}</span>
-      </div>
+      <div className="badge__bid-row">{bidStr} · {tricks}</div>
+      {!isHuman && (
+        <div className="badge__opp-hand">
+          {SUIT_ORDER.map(suit => {
+            const suitCards = gs.hands[seat]!
+              .filter(c => suitOf(c) === suit)
+              .sort((a, b) => rankIxOf(b) - rankIxOf(a));
+            if (!suitCards.length) return null;
+            const red = suit === 1 || suit === 2;
+            return (
+              <div key={suit} className="badge__opp-row">
+                <span className={`badge__opp-glyph${red ? ' badge__opp-glyph--red' : ''}`}>
+                  {SUIT_GLYPHS[suit]}
+                </span>
+                {suitCards.map(c => (
+                  <span key={c} className={`badge__opp-chip${red ? ' badge__opp-chip--red' : ''}`}>
+                    {RANK_LABELS[rankIxOf(c)]}
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -121,7 +140,11 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
 // ══════════════════════════════════════════════
 //  TRICK AREA
 // ══════════════════════════════════════════════
-function TrickArea({ gs, trickPause }: { gs: GameState; trickPause: TrickPause | null }) {
+function TrickArea({ gs, trickPause, isHumanPlay }: {
+  gs: GameState;
+  trickPause: TrickPause | null;
+  isHumanPlay: boolean;
+}) {
   const displayEntries = trickPause ? trickPause.entries : gs.trick;
   const winner = trickPause?.winner ?? null;
 
@@ -130,11 +153,12 @@ function TrickArea({ gs, trickPause }: { gs: GameState; trickPause: TrickPause |
       <div className="trick-inner">
         {[0, 1, 2, 3].map(seat => {
           const entry = displayEntries.find(e => e.seat === seat);
+          const prompt = !entry && seat === HUMAN && isHumanPlay;
           return (
             <div key={seat} className={`trick-slot trick-slot--${seat}`}>
               {entry
                 ? <TrickCard card={entry.card} winner={winner === seat && trickPause !== null} />
-                : <div className="tcard--empty" />
+                : <div className={prompt ? 'tcard--prompt' : 'tcard--empty'} />
               }
             </div>
           );
@@ -391,7 +415,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
           <div className="seat seat--east">
             <Badge seat={1} gs={gs} isActive={gs.turn === 1 && !trickPause} />
           </div>
-          <TrickArea gs={gs} trickPause={trickPause} />
+          <TrickArea gs={gs} trickPause={trickPause} isHumanPlay={isHumanPlay} />
           <div className="seat seat--south">
             <Badge seat={HUMAN} gs={gs} isActive={isHumanBid || isHumanPlay} />
           </div>
@@ -431,6 +455,7 @@ export default function App() {
   }, []);
 
   const handleBid = useCallback((bid: number) => {
+    navigator.vibrate?.(15);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
       const gs = cloneState(prev.gs);
@@ -440,6 +465,7 @@ export default function App() {
   }, []);
 
   const handlePlay = useCallback((card: Card) => {
+    navigator.vibrate?.(25);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.trickPause !== null) return prev;
       if (prev.gs.phase !== 'playing' || prev.gs.turn !== HUMAN) return prev;
@@ -540,6 +566,17 @@ export default function App() {
 
     return () => window.clearTimeout(id);
   }, [appState]);
+
+  // Auto-play when only one legal move available
+  useEffect(() => {
+    if (appState.tag !== 'game') return;
+    const { gs, trickPause } = appState;
+    if (trickPause !== null || gs.phase !== 'playing' || gs.turn !== HUMAN) return;
+    const moves = getLegalMoves(gs);
+    if (moves.length !== 1) return;
+    const id = window.setTimeout(() => handlePlay(moves[0]!), 350);
+    return () => window.clearTimeout(id);
+  }, [appState, handlePlay]);
 
   // ── Render ─────────────────────────────────
   if (appState.tag === 'start') {
