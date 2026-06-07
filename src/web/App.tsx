@@ -36,7 +36,6 @@ interface HandSummaryData {
 }
 
 type AppState =
-  | { tag: 'start' }
   | { tag: 'game'; gs: GameState; pk: PublicKnowledge; trickPause: TrickPause | null }
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
   | { tag: 'game-over'; scores: number[]; placements: number[] };
@@ -337,36 +336,15 @@ function GameOverOverlay({ scores, placements, onNewGame }: {
 }
 
 // ══════════════════════════════════════════════
-//  START SCREEN
-// ══════════════════════════════════════════════
-function StartScreen({ onStart }: { onStart: () => void }) {
-  return (
-    <div className="start-screen">
-      <div className="start-screen__logo">♠</div>
-      <div style={{ textAlign: 'center' }}>
-        <h1 className="start-screen__title">Solo Cutthroat Spades</h1>
-        <p className="start-screen__subtitle">4-player free-for-all · First to 40</p>
-      </div>
-      <ul className="start-screen__rules">
-        <li>Bid your tricks — make your bid or get set</li>
-        <li>Bid NIL to score +50 by taking zero tricks</li>
-        <li>3 over-tricks (bags) costs 30 pts</li>
-        <li>Spades always trump</li>
-      </ul>
-      <button className="btn btn--primary" onClick={onStart}>Deal Cards</button>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════
 //  GAME TABLE
 // ══════════════════════════════════════════════
-function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
+function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
   gs: GameState;
   pk: PublicKnowledge;
   trickPause: TrickPause | null;
   onBid: (bid: number) => void;
   onPlay: (card: Card) => void;
+  onRestart: () => void;
 }) {
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
   const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
@@ -378,7 +356,10 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
       <div className="table__header">
         <span className="hdr__title">♠ Spades</span>
         <span className="hdr__hand">Hand {gs.handNumber + 1} · First to 40</span>
-        <span className="hdr__score">You: {gs.scores[HUMAN]}</span>
+        <div className="hdr__right">
+          <span className="hdr__score">You: {gs.scores[HUMAN]}</span>
+          <button className="hdr__restart-btn" onClick={onRestart} aria-label="New game">↺</button>
+        </div>
       </div>
 
       <div className="table__body">
@@ -422,8 +403,13 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
 //  ROOT APP
 // ══════════════════════════════════════════════
 export default function App() {
-  const [appState, setAppState] = useState<AppState>({ tag: 'start' });
   const rngRef = useRef<Rng | null>(null);
+  const [appState, setAppState] = useState<AppState>(() => {
+    const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
+    rngRef.current = rng;
+    const { gs, pk } = startHandState(null, rng);
+    return { tag: 'game', gs, pk, trickPause: null };
+  });
 
   const startGame = useCallback(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
@@ -557,14 +543,10 @@ export default function App() {
   }, [appState, handlePlay]);
 
   // ── Render ─────────────────────────────────
-  if (appState.tag === 'start') {
-    return <StartScreen onStart={startGame} />;
-  }
-
   if (appState.tag === 'game') {
     const { gs, pk, trickPause } = appState;
     return (
-      <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} />
+      <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} />
     );
   }
 
@@ -572,7 +554,7 @@ export default function App() {
     const { data, nextGs, nextPk } = appState;
     return (
       <>
-        <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} />
+        <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} onRestart={startGame} />
         <HandSummaryOverlay data={data} onContinue={handleContinue} />
       </>
     );

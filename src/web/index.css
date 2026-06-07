@@ -52,7 +52,18 @@ html, body {
 }
 .hdr__title { font-weight: 800; font-size: 14px; letter-spacing: 0.04em; }
 .hdr__hand  { color: var(--text-dim); font-size: 11px; }
+.hdr__right { display: flex; align-items: center; gap: 10px; }
 .hdr__score { color: var(--gold); font-weight: 700; }
+.hdr__restart-btn {
+  background: none; border: none;
+  color: var(--text-dim); font-size: 20px;
+  cursor: pointer; padding: 2px 4px; line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+.hdr__restart-btn:hover  { color: var(--text); background: var(--surface2); }
+.hdr__restart-btn:active { opacity: 0.6; }
 
 /* Body: felt (left/top) + panel (right/bottom) */
 .table__body {
@@ -402,34 +413,3 @@ html, body {
   box-shadow: 0 4px 18px rgba(79,110,245,0.38);
 }
 .btn--primary:hover { opacity: 0.88; }
-
-/* ════════════════════════════════════════
-   START SCREEN
-════════════════════════════════════════ */
-.start-screen {
-  flex: 1;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 20px; padding: 28px 20px;
-  background: var(--bg);
-}
-.start-screen__logo { font-size: 72px; line-height: 1; filter: drop-shadow(0 4px 20px rgba(79,110,245,0.5)); }
-.start-screen__title { font-size: 24px; font-weight: 800; letter-spacing: 0.03em; text-align: center; }
-.start-screen__subtitle { font-size: 13px; color: var(--text-dim); text-align: center; }
-.start-screen__rules {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 18px;
-  max-width: 300px; width: 100%;
-  font-size: 12px; line-height: 2; color: var(--text-dim);
-  list-style: none;
-}
-.start-screen__rules li::before { content: '· '; color: var(--gold); }
-
-@media (orientation: landscape) {
-  .start-screen { flex-direction: row; flex-wrap: wrap; gap: 24px; padding: 16px 36px; }
-  .start-screen__logo { font-size: 56px; }
-  .start-screen__title { font-size: 20px; }
-  .start-screen__rules { max-width: 260px; font-size: 11px; padding: 10px 14px; }
-}
