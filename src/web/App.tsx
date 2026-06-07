@@ -12,7 +12,7 @@ import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
 import { SearchAgent } from '../ai/agents.js';
 import { Rng } from '../engine/rng.js';
 
-// ── Constants ────────────────────────────────────
+// ── Constants ────────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
 const SEAT_DIRS  = ['south', 'east', 'north', 'west'] as const;
@@ -20,7 +20,7 @@ const AI_BID_DELAY  = 380;
 const AI_PLAY_DELAY = 460;
 const TRICK_PAUSE   = 900;
 
-// ── Types ────────────────────────────────────────────
+// ── Types ─────────────────────────────────────
 interface TrickPause {
   entries: TrickEntry[];
   winner: number;
@@ -42,7 +42,7 @@ type AppState =
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
   | { tag: 'game-over'; scores: number[]; placements: number[] };
 
-// ── Helpers ───────────────────────────────────────
+// ── Helpers ───────────────────────────────────
 function clonePk(pk: PublicKnowledge): PublicKnowledge {
   return { played: pk.played.slice(), voids: pk.voids.map(v => v.slice()) };
 }
@@ -74,9 +74,9 @@ const AI_AGENTS: (SearchAgent | null)[] = [
   new SearchAgent(),
 ];
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  CARD COMPONENT
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 interface CardProps {
   card: Card;
   playable?: boolean;
@@ -120,9 +120,9 @@ function CardBack({ size }: { size?: 'sm' }) {
   return <div className={['card', 'card--back', size ? `card--${size}` : ''].filter(Boolean).join(' ')} />;
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  PLAYER BADGE
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function PlayerBadge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: boolean }) {
   const name    = SEAT_NAMES[seat]!;
   const bid     = gs.bids[seat];
@@ -153,9 +153,9 @@ function OppHand({ count }: { count: number }) {
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  TRICK AREA
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function TrickArea({
   gs, trickPause,
 }: {
@@ -192,9 +192,9 @@ function TrickArea({
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  STATUS BAR TEXT
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function StatusText({ gs, trickPause, isHandDone }: {
   gs: GameState;
   trickPause: TrickPause | null;
@@ -235,9 +235,69 @@ function ThinkingDots() {
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
+//  HAND (fan layout with ResizeObserver)
+// ══════════════════════════════════════════════
+function Hand({ cards, isPlay, isBid, legal, onPlay }: {
+  cards: Card[];
+  isPlay: boolean;
+  isBid: boolean;
+  legal: Set<Card>;
+  onPlay: (card: Card) => void;
+}) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 340, cardW: 56 });
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const cw = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--cw').trim()
+      ) || 56;
+      setDims({ w: el.clientWidth, cardW: cw });
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
+
+  const { w: containerW, cardW } = dims;
+  const cardH = Math.round(cardW * 78 / 56);
+  const n = cards.length;
+  const available = Math.max(containerW - 16, cardW);
+  const stride = n <= 1 ? 0 : Math.min(cardW + 28, (available - cardW) / (n - 1));
+  const totalW = n <= 1 ? cardW : Math.round(stride * (n - 1)) + cardW;
+
+  return (
+    <div ref={outerRef} className={`hand-outer${isBid ? ' hand--bidding' : ''}`}>
+      <div className="hand" style={{ width: totalW, height: cardH }}>
+        {cards.map((card, i) => {
+          const isLegal = isPlay && legal.has(card);
+          return (
+            <div
+              key={card}
+              className={`hcard${isLegal ? ' hcard--play' : ''}`}
+              style={{ left: Math.round(i * stride), zIndex: i + 1 }}
+              onClick={isLegal ? () => onPlay(card) : undefined}
+            >
+              <PlayingCard
+                card={card}
+                playable={isLegal}
+                illegal={isPlay && !legal.has(card)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
 //  BID SELECTOR
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
   return (
     <div className="bid-panel">
@@ -257,9 +317,9 @@ function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  HAND SUMMARY OVERLAY
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function HandSummaryOverlay({
   data, onContinue,
 }: {
@@ -307,9 +367,9 @@ function HandSummaryOverlay({
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  GAME OVER OVERLAY
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function GameOverOverlay({
   scores, placements, onNewGame,
 }: {
@@ -355,9 +415,9 @@ function GameOverOverlay({
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  START SCREEN
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function StartScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="start-screen">
@@ -381,9 +441,9 @@ function StartScreen({ onStart }: { onStart: () => void }) {
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  GAME TABLE
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 function GameTable({
   gs, pk, trickPause, onBid, onPlay,
 }: {
@@ -446,30 +506,26 @@ function GameTable({
         {isHumanBid && <BidSelector onBid={onBid} />}
 
         {/* Hand — always visible so you can see your cards when bidding */}
-        <div className={`hand${isHumanBid ? ' hand--bidding' : ''}`}>
-          {sortedHand.map(card => (
-            <PlayingCard
-              key={card}
-              card={card}
-              playable={isHumanPlay && legal.has(card)}
-              illegal={isHumanPlay && !legal.has(card)}
-              onClick={isHumanPlay ? () => onPlay(card) : undefined}
-            />
-          ))}
-        </div>
+        <Hand
+          cards={sortedHand}
+          isPlay={isHumanPlay}
+          isBid={isHumanBid}
+          legal={legal}
+          onPlay={onPlay}
+        />
       </div>
     </div>
   );
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  ROOT APP
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
 export default function App() {
   const [appState, setAppState] = useState<AppState>({ tag: 'start' });
   const rngRef = useRef<Rng | null>(null);
 
-  // ── Start / New Game ─────────────────────────────
+  // ── Start / New Game ─────────────────────────
   const startGame = useCallback(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
     rngRef.current = rng;
@@ -477,7 +533,7 @@ export default function App() {
     setAppState({ tag: 'game', gs, pk, trickPause: null });
   }, []);
 
-  // ── Human actions ────────────────────────────────────
+  // ── Human actions ────────────────────────────
   const handleBid = useCallback((bid: number) => {
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
@@ -517,7 +573,7 @@ export default function App() {
     });
   }, []);
 
-  // ── Continue after hand summary ───────────────────
+  // ── Continue after hand summary ───────────────
   const handleContinue = useCallback(() => {
     setAppState(prev => {
       if (prev.tag !== 'hand-summary') return prev;
@@ -599,7 +655,7 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [appState]);
 
-  // ── Render ────────────────────────────────────────────
+  // ── Render ────────────────────────────────────
   if (appState.tag === 'start') {
     return <StartScreen onStart={startGame} />;
   }
@@ -642,7 +698,7 @@ export default function App() {
   return null;
 }
 
-// ── Build hand-summary state ───────────────────────
+// ── Build hand-summary state ───────────────────
 function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): AppState {
   const bids   = gs.bids.map(b => b ?? 0);
   const result = scoreHand(bids, gs.tricksWon, gs.bags);
