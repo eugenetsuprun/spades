@@ -71,9 +71,6 @@ html, body {
   display: flex; flex-direction: column;
 }
 
-@media (orientation: landscape) {
-  .table__body { flex-direction: row; }
-}
 
 /* ════════════════════════════════════════
    FELT  (opponents + trick)
@@ -208,15 +205,6 @@ html, body {
   border-top: 1px solid var(--border);
 }
 
-@media (orientation: landscape) {
-  .panel {
-    border-top: none;
-    border-left: 1px solid var(--border);
-    width: 260px;
-  }
-  .felt { grid-template-columns: 90px 1fr 90px; }
-  .trick-inner { width: 170px; height: 150px; }
-}
 
 /* ── Status bar ── */
 .status-bar {
@@ -263,10 +251,6 @@ html, body {
   color: var(--gold);
 }
 
-@media (orientation: landscape) {
-  .bid-grid { grid-template-columns: repeat(14, 1fr); gap: 3px; }
-  .bid-btn  { height: 36px; font-size: 13px; }
-}
 
 /* ── Hand (suit rows) ── */
 .hand-area {
@@ -438,9 +422,3 @@ html, body {
 }
 .start-screen__rules li::before { content: '· '; color: var(--gold); }
 
-@media (orientation: landscape) {
-  .start-screen { flex-direction: row; flex-wrap: wrap; gap: 24px; padding: 16px 36px; }
-  .start-screen__logo { font-size: 56px; }
-  .start-screen__title { font-size: 20px; }
-  .start-screen__rules { max-width: 260px; font-size: 11px; padding: 10px 14px; }
-}
