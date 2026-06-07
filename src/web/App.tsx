@@ -12,7 +12,7 @@ import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
 import { SearchAgent } from '../ai/agents.js';
 import { Rng } from '../engine/rng.js';
 
-// ── Constants ────────────────────────────────
+// ── Constants ────────────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
 const SEAT_DIRS  = ['south', 'east', 'north', 'west'] as const;
@@ -20,7 +20,7 @@ const AI_BID_DELAY  = 380;
 const AI_PLAY_DELAY = 460;
 const TRICK_PAUSE   = 900;
 
-// ── Types ─────────────────────────────────────
+// ── Types ────────────────────────────────────────────
 interface TrickPause {
   entries: TrickEntry[];
   winner: number;
@@ -42,7 +42,7 @@ type AppState =
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
   | { tag: 'game-over'; scores: number[]; placements: number[] };
 
-// ── Helpers ───────────────────────────────────
+// ── Helpers ───────────────────────────────────────
 function clonePk(pk: PublicKnowledge): PublicKnowledge {
   return { played: pk.played.slice(), voids: pk.voids.map(v => v.slice()) };
 }
@@ -74,9 +74,9 @@ const AI_AGENTS: (SearchAgent | null)[] = [
   new SearchAgent(),
 ];
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  CARD COMPONENT
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 interface CardProps {
   card: Card;
   playable?: boolean;
@@ -120,25 +120,24 @@ function CardBack({ size }: { size?: 'sm' }) {
   return <div className={['card', 'card--back', size ? `card--${size}` : ''].filter(Boolean).join(' ')} />;
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  PLAYER BADGE
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function PlayerBadge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: boolean }) {
-  const name   = SEAT_NAMES[seat]!;
-  const bid    = gs.bids[seat];
-  const tricks = gs.tricksWon[seat]!;
-  const score  = gs.scores[seat]!;
+  const name    = SEAT_NAMES[seat]!;
+  const bid     = gs.bids[seat];
+  const tricks  = gs.tricksWon[seat]!;
+  const score   = gs.scores[seat]!;
   const isHuman = seat === HUMAN;
-
-  const bidStr = bid === null ? '—' : bid === 0 ? 'NIL' : String(bid);
+  const bidStr  = bid === null ? '—' : bid === 0 ? 'NIL' : String(bid);
 
   return (
     <div className={['badge', isHuman ? 'badge--human' : '', isActive ? 'badge--active' : ''].filter(Boolean).join(' ')}>
       <div className="badge__name">{name}</div>
       <div className="badge__score">{score}</div>
-      <div className="badge__stats">
-        <span className="badge__stat badge__bid">bid:{bidStr}</span>
-        <span className="badge__stat">won:{tricks}</span>
+      <div className="badge__meta">
+        <span>bid {bidStr}</span>
+        <span>won {tricks}</span>
       </div>
     </div>
   );
@@ -154,15 +153,14 @@ function OppHand({ count }: { count: number }) {
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  TRICK AREA
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function TrickArea({
-  gs, trickPause, spadesBroken,
+  gs, trickPause,
 }: {
   gs: GameState;
   trickPause: TrickPause | null;
-  spadesBroken: boolean;
 }) {
   const displayEntries = trickPause ? trickPause.entries : gs.trick;
   const winner = trickPause?.winner ?? null;
@@ -185,17 +183,18 @@ function TrickArea({
             </div>
           );
         })}
-        <div className="trick-info">
-          {spadesBroken ? '♠ broken' : '♠ not yet'}
+        <div className="trick-meta">
+          {gs.completedTricks}/{13}<br/>
+          {gs.spadesBroken ? '♠ broken' : '♠ not led'}
         </div>
       </div>
     </div>
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  STATUS BAR TEXT
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function StatusText({ gs, trickPause, isHandDone }: {
   gs: GameState;
   trickPause: TrickPause | null;
@@ -236,28 +235,31 @@ function ThinkingDots() {
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  BID SELECTOR
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
   return (
-    <div className="bid-grid">
-      {Array.from({ length: 14 }, (_, i) => (
-        <button
-          key={i}
-          className={`bid-btn ${i === 0 ? 'bid-btn--nil' : ''}`}
-          onClick={() => onBid(i)}
-        >
-          {i === 0 ? 'NIL' : i}
-        </button>
-      ))}
+    <div className="bid-panel">
+      <div className="bid-label">CHOOSE YOUR BID</div>
+      <div className="bid-grid">
+        {Array.from({ length: 14 }, (_, i) => (
+          <button
+            key={i}
+            className={`bid-btn ${i === 0 ? 'bid-btn--nil' : ''}`}
+            onClick={() => onBid(i)}
+          >
+            {i === 0 ? 'NIL' : i}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  HAND SUMMARY OVERLAY
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function HandSummaryOverlay({
   data, onContinue,
 }: {
@@ -305,9 +307,9 @@ function HandSummaryOverlay({
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  GAME OVER OVERLAY
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function GameOverOverlay({
   scores, placements, onNewGame,
 }: {
@@ -353,9 +355,9 @@ function GameOverOverlay({
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  START SCREEN
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function StartScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="start-screen">
@@ -379,9 +381,9 @@ function StartScreen({ onStart }: { onStart: () => void }) {
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  GAME TABLE
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 function GameTable({
   gs, pk, trickPause, onBid, onPlay,
 }: {
@@ -408,33 +410,28 @@ function GameTable({
     <div className="table">
       <div className="table__header">
         <span>♠ Spades</span>
-        <span className="hand-no">Hand {gs.handNumber + 1} · First to 40</span>
-        <span>Scores: {gs.scores[HUMAN]}</span>
+        <span className="subtitle">Hand {gs.handNumber + 1} · First to 40</span>
+        <span className="score">You: {gs.scores[HUMAN]}</span>
       </div>
 
       <div className="table__felt">
-        {/* North */}
-        <div className="player player--north">
-          <OppHand count={gs.hands[2]!.length} />
-          <PlayerBadge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
-        </div>
-
-        {/* West */}
         <div className="player player--west">
           <OppHand count={gs.hands[3]!.length} />
           <PlayerBadge seat={3} gs={gs} isActive={gs.turn === 3 && !trickPause} />
         </div>
 
-        {/* Trick */}
-        <TrickArea gs={gs} trickPause={trickPause} spadesBroken={gs.spadesBroken} />
+        <div className="player player--north">
+          <OppHand count={gs.hands[2]!.length} />
+          <PlayerBadge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
+        </div>
 
-        {/* East */}
         <div className="player player--east">
           <OppHand count={gs.hands[1]!.length} />
           <PlayerBadge seat={1} gs={gs} isActive={gs.turn === 1 && !trickPause} />
         </div>
 
-        {/* South (human) */}
+        <TrickArea gs={gs} trickPause={trickPause} />
+
         <div className="player player--south">
           <PlayerBadge seat={HUMAN} gs={gs} isActive={isHumanBid || isHumanPlay} />
         </div>
@@ -445,34 +442,34 @@ function GameTable({
           <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
         </div>
 
-        {isHumanBid ? (
-          <BidSelector onBid={onBid} />
-        ) : (
-          <div className="hand">
-            {sortedHand.map(card => (
-              <PlayingCard
-                key={card}
-                card={card}
-                playable={isHumanPlay && legal.has(card)}
-                illegal={isHumanPlay && !legal.has(card)}
-                onClick={() => onPlay(card)}
-              />
-            ))}
-          </div>
-        )}
+        {/* Bid grid — visible above hand when it's your turn to bid */}
+        {isHumanBid && <BidSelector onBid={onBid} />}
+
+        {/* Hand — always visible so you can see your cards when bidding */}
+        <div className={`hand${isHumanBid ? ' hand--bidding' : ''}`}>
+          {sortedHand.map(card => (
+            <PlayingCard
+              key={card}
+              card={card}
+              playable={isHumanPlay && legal.has(card)}
+              illegal={isHumanPlay && !legal.has(card)}
+              onClick={isHumanPlay ? () => onPlay(card) : undefined}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  ROOT APP
-// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 export default function App() {
   const [appState, setAppState] = useState<AppState>({ tag: 'start' });
   const rngRef = useRef<Rng | null>(null);
 
-  // ── Start / New Game ─────────────────────────
+  // ── Start / New Game ─────────────────────────────
   const startGame = useCallback(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
     rngRef.current = rng;
@@ -480,7 +477,7 @@ export default function App() {
     setAppState({ tag: 'game', gs, pk, trickPause: null });
   }, []);
 
-  // ── Human actions ────────────────────────────
+  // ── Human actions ────────────────────────────────────
   const handleBid = useCallback((bid: number) => {
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
@@ -520,7 +517,7 @@ export default function App() {
     });
   }, []);
 
-  // ── Continue after hand summary ───────────────
+  // ── Continue after hand summary ───────────────────
   const handleContinue = useCallback(() => {
     setAppState(prev => {
       if (prev.tag !== 'hand-summary') return prev;
@@ -602,7 +599,7 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [appState]);
 
-  // ── Render ────────────────────────────────────
+  // ── Render ────────────────────────────────────────────
   if (appState.tag === 'start') {
     return <StartScreen onStart={startGame} />;
   }
@@ -645,7 +642,7 @@ export default function App() {
   return null;
 }
 
-// ── Build hand-summary state ───────────────────
+// ── Build hand-summary state ───────────────────────
 function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): AppState {
   const bids   = gs.bids.map(b => b ?? 0);
   const result = scoreHand(bids, gs.tricksWon, gs.bags);
