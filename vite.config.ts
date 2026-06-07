@@ -15,8 +15,8 @@ export default defineConfig({
         name: 'Solo Cutthroat Spades',
         short_name: 'Spades',
         description: 'Play Solo Cutthroat Spades against strong AI opponents',
-        theme_color: '#1a5c2e',
-        background_color: '#0d2b18',
+        theme_color: '#15151f',
+        background_color: '#0d0d13',
         display: 'standalone',
         orientation: 'landscape-primary',
         icons: [

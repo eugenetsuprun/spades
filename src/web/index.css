@@ -70,26 +70,26 @@ html, body {
     ".    north ."
     "west trick east"
     ".    south .";
-  grid-template-columns: 84px 1fr 84px;
+  grid-template-columns: 96px 1fr 96px;
   grid-template-rows: auto 1fr auto;
   padding: 8px;
   gap: 6px;
   align-items: center;
 }
 
-.seat--north { grid-area: north; justify-self: center; }
+.seat--north { grid-area: north; justify-self: center; width: 100%; max-width: 200px; }
 .seat--south { grid-area: south; justify-self: center; }
-.seat--west  { grid-area: west;  align-self: stretch; display: flex; align-items: center; }
-.seat--east  { grid-area: east;  align-self: stretch; display: flex; align-items: center; }
+.seat--west  { grid-area: west;  align-self: flex-start; padding-top: 4px; }
+.seat--east  { grid-area: east;  align-self: flex-start; padding-top: 4px; }
 
 /* ── Player badge ── */
 .badge {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 7px 9px;
+  padding: 6px 8px;
   text-align: center;
-  min-width: 74px;
+  width: 100%;
 }
 .badge--active {
   border-color: var(--border-hi);
@@ -97,13 +97,34 @@ html, body {
   box-shadow: 0 0 12px rgba(255,255,255,0.07);
 }
 .badge--you { border-color: rgba(232,184,75,0.3); }
-.badge__name  { font-weight: 700; font-size: 12px; letter-spacing: 0.03em; }
-.badge__score { font-size: 16px; font-weight: 800; color: var(--gold); line-height: 1.3; }
-.badge__info  {
-  font-size: 10px; color: var(--text-dim);
-  display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;
-  margin-top: 2px;
+.badge__name    { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; color: var(--text-dim); }
+.badge__score   { font-size: 18px; font-weight: 800; color: var(--gold); line-height: 1.2; }
+.badge__bid-row { font-size: 13px; font-weight: 700; color: var(--text); margin-top: 1px; }
+
+/* Mini opponent hand chips inside badge */
+.badge__opp-hand {
+  display: flex; flex-direction: column; gap: 2px;
+  margin-top: 5px; text-align: left;
 }
+.badge__opp-row {
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+}
+.badge__opp-glyph {
+  font-size: 11px; width: 12px; flex-shrink: 0; line-height: 1;
+}
+.badge__opp-glyph--red { color: var(--red); }
+.badge__opp-chip {
+  font-size: 9px; font-weight: 700;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  min-width: 15px; height: 15px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 2px;
+  color: var(--text);
+  line-height: 1;
+}
+.badge__opp-chip--red { color: var(--red); }
 
 /* ════════════════════════════════════════
    TRICK AREA
@@ -111,7 +132,7 @@ html, body {
 .trick-area { grid-area: trick; display: flex; align-items: center; justify-content: center; }
 .trick-inner {
   position: relative;
-  width: 150px; height: 130px;
+  width: 140px; height: 120px;
 }
 .trick-slot { position: absolute; }
 .trick-slot--0 { bottom: 0; left: 50%; transform: translateX(-50%); }
@@ -150,6 +171,16 @@ html, body {
   border-radius: 5px;
   border: 1.5px dashed rgba(255,255,255,0.1);
 }
+.tcard--prompt {
+  width: 36px; height: 48px;
+  border-radius: 5px;
+  border: 2px solid var(--gold);
+  animation: prompt-pulse 1.1s ease-in-out infinite;
+}
+@keyframes prompt-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 0.9; }
+}
 
 /* ════════════════════════════════════════
    PANEL  (status + bid + hand)
@@ -167,8 +198,8 @@ html, body {
     border-left: 1px solid var(--border);
     width: 260px;
   }
-  .felt { grid-template-columns: 80px 1fr 80px; }
-  .trick-inner { width: 160px; height: 140px; }
+  .felt { grid-template-columns: 90px 1fr 90px; }
+  .trick-inner { width: 150px; height: 130px; }
 }
 
 /* ── Status bar ── */
@@ -195,15 +226,15 @@ html, body {
 .bid-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 5px;
 }
 .bid-btn {
-  height: 38px;
+  height: 48px;
   border-radius: 6px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 14px; font-weight: 700;
+  font-size: 16px; font-weight: 700;
   cursor: pointer; font-family: inherit;
   transition: background 0.1s, transform 0.08s;
   touch-action: manipulation;
@@ -218,7 +249,7 @@ html, body {
 
 @media (orientation: landscape) {
   .bid-grid { grid-template-columns: repeat(14, 1fr); gap: 3px; }
-  .bid-btn  { height: 32px; font-size: 12px; }
+  .bid-btn  { height: 36px; font-size: 13px; }
 }
 
 /* ── Hand (suit rows) ── */
