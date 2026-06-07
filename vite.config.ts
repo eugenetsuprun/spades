@@ -12,9 +12,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
       manifest: {
-        name: 'Solo Cutthroat Spades',
+        name: 'Solo Spades',
         short_name: 'Spades',
-        description: 'Play Solo Cutthroat Spades against strong AI opponents',
+        description: 'Play Solo Spades against AI opponents',
         theme_color: '#15151f',
         background_color: '#0d0d13',
         display: 'fullscreen',

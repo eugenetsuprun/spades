@@ -52,7 +52,18 @@ html, body {
 }
 .hdr__title { font-weight: 800; font-size: 14px; letter-spacing: 0.04em; }
 .hdr__hand  { color: var(--text-dim); font-size: 11px; }
+.hdr__right { display: flex; align-items: center; gap: 10px; }
 .hdr__score { color: var(--gold); font-weight: 700; }
+.hdr__restart-btn {
+  background: none; border: none;
+  color: var(--text-dim); font-size: 20px;
+  cursor: pointer; padding: 2px 4px; line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+.hdr__restart-btn:hover  { color: var(--text); background: var(--surface2); }
+.hdr__restart-btn:active { opacity: 0.6; }
 
 /* Body: felt (left/top) + panel (right/bottom) */
 .table__body {
