@@ -12,15 +12,14 @@ import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
 import { SearchAgent } from '../ai/agents.js';
 import { Rng } from '../engine/rng.js';
 
-// ── Constants ────────────────────────────────
+// ── Constants ─────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
-const SEAT_DIRS  = ['south', 'east', 'north', 'west'] as const;
 const AI_BID_DELAY  = 380;
 const AI_PLAY_DELAY = 460;
 const TRICK_PAUSE   = 900;
 
-// ── Types ─────────────────────────────────────
+// ── Types ──────────────────────────────────
 interface TrickPause {
   entries: TrickEntry[];
   winner: number;
@@ -42,7 +41,7 @@ type AppState =
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
   | { tag: 'game-over'; scores: number[]; placements: number[] };
 
-// ── Helpers ───────────────────────────────────
+// ── Helpers ────────────────────────────────
 function clonePk(pk: PublicKnowledge): PublicKnowledge {
   return { played: pk.played.slice(), voids: pk.voids.map(v => v.slice()) };
 }
@@ -66,7 +65,6 @@ function startHandState(prevGs: GameState | null, rng: Rng): { gs: GameState; pk
   return { gs, pk: emptyKnowledge() };
 }
 
-// AI agents — created once, reused across games
 const AI_AGENTS: (SearchAgent | null)[] = [
   null,
   new SearchAgent(),
@@ -74,68 +72,45 @@ const AI_AGENTS: (SearchAgent | null)[] = [
   new SearchAgent(),
 ];
 
+// ── Suit display order: ♠ ♥ ♦ ♣ (spades first = trump first) ──
+const SUIT_ORDER = [3, 2, 1, 0] as const;
+
 // ══════════════════════════════════════════════
-//  CARD COMPONENT
+//  TRICK CARD  (used inside trick area)
 // ══════════════════════════════════════════════
-interface CardProps {
-  card: Card;
-  playable?: boolean;
-  illegal?: boolean;
-  winner?: boolean;
-  size?: 'sm';
-  onClick?: () => void;
-}
-
-function PlayingCard({ card, playable, illegal, winner, size, onClick }: CardProps) {
-  const suit   = suitOf(card);
-  const rank   = RANK_LABELS[rankIxOf(card)]!;
-  const glyph  = SUIT_GLYPHS[suit]!;
-  const isRed  = suit === 1 || suit === 2;
-
-  const cls = [
-    'card',
-    isRed ? 'card--red' : 'card--black',
-    playable ? 'card--playable' : '',
-    illegal  ? 'card--illegal'  : '',
-    winner   ? 'card--winner'   : '',
-    size     ? `card--${size}`  : '',
-  ].filter(Boolean).join(' ');
-
+function TrickCard({ card, winner }: { card: Card; winner: boolean }) {
+  const suit  = suitOf(card);
+  const rank  = RANK_LABELS[rankIxOf(card)]!;
+  const glyph = SUIT_GLYPHS[suit]!;
+  const isRed = suit === 1 || suit === 2;
   return (
-    <div className={cls} onClick={playable && !illegal && onClick ? onClick : undefined} role={playable ? 'button' : undefined}>
-      <div className="card__corner card__corner--tl">
-        <span className="card__rank">{rank}</span>
-        <span className="card__suit-sm">{glyph}</span>
-      </div>
-      <div className="card__center">{glyph}</div>
-      <div className="card__corner card__corner--br">
-        <span className="card__rank">{rank}</span>
-        <span className="card__suit-sm">{glyph}</span>
-      </div>
+    <div className={`tcard${isRed ? ' tcard--red' : ''}${winner ? ' tcard--win' : ''}`}>
+      <span className="tcard__rank">{rank}</span>
+      <span className="tcard__suit">{glyph}</span>
     </div>
   );
-}
-
-function CardBack({ size }: { size?: 'sm' }) {
-  return <div className={['card', 'card--back', size ? `card--${size}` : ''].filter(Boolean).join(' ')} />;
 }
 
 // ══════════════════════════════════════════════
 //  PLAYER BADGE
 // ══════════════════════════════════════════════
-function PlayerBadge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: boolean }) {
-  const name    = SEAT_NAMES[seat]!;
-  const bid     = gs.bids[seat];
-  const tricks  = gs.tricksWon[seat]!;
-  const score   = gs.scores[seat]!;
-  const isHuman = seat === HUMAN;
-  const bidStr  = bid === null ? '—' : bid === 0 ? 'NIL' : String(bid);
+function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: boolean }) {
+  const bid       = gs.bids[seat];
+  const tricks    = gs.tricksWon[seat]!;
+  const score     = gs.scores[seat]!;
+  const cardCount = gs.hands[seat]!.length;
+  const bidStr    = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
 
   return (
-    <div className={['badge', isHuman ? 'badge--human' : '', isActive ? 'badge--active' : ''].filter(Boolean).join(' ')}>
-      <div className="badge__name">{name}</div>
+    <div className={[
+      'badge',
+      isActive ? 'badge--active' : '',
+      seat === HUMAN ? 'badge--you' : '',
+    ].filter(Boolean).join(' ')}>
+      <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
-      <div className="badge__meta">
+      <div className="badge__info">
+        {seat !== HUMAN && <span>{cardCount}c</span>}
         <span>bid {bidStr}</span>
         <span>won {tricks}</span>
       </div>
@@ -143,25 +118,10 @@ function PlayerBadge({ seat, gs, isActive }: { seat: number; gs: GameState; isAc
   );
 }
 
-// Small face-down cards showing how many cards an opponent holds
-function OppHand({ count }: { count: number }) {
-  const shown = Math.min(count, 5);
-  return (
-    <div className="opp-cards">
-      {Array.from({ length: shown }).map((_, i) => <CardBack key={i} size="sm" />)}
-    </div>
-  );
-}
-
 // ══════════════════════════════════════════════
 //  TRICK AREA
 // ══════════════════════════════════════════════
-function TrickArea({
-  gs, trickPause,
-}: {
-  gs: GameState;
-  trickPause: TrickPause | null;
-}) {
+function TrickArea({ gs, trickPause }: { gs: GameState; trickPause: TrickPause | null }) {
   const displayEntries = trickPause ? trickPause.entries : gs.trick;
   const winner = trickPause?.winner ?? null;
 
@@ -172,20 +132,16 @@ function TrickArea({
           const entry = displayEntries.find(e => e.seat === seat);
           return (
             <div key={seat} className={`trick-slot trick-slot--${seat}`}>
-              {entry ? (
-                <PlayingCard
-                  card={entry.card}
-                  winner={winner === seat && trickPause !== null}
-                />
-              ) : (
-                <div className="trick-slot--empty"><div className="card-ghost" /></div>
-              )}
+              {entry
+                ? <TrickCard card={entry.card} winner={winner === seat && trickPause !== null} />
+                : <div className="tcard--empty" />
+              }
             </div>
           );
         })}
         <div className="trick-meta">
-          {gs.completedTricks}/{13}<br/>
-          {gs.spadesBroken ? '♠ broken' : '♠ not led'}
+          {gs.completedTricks}/13<br />
+          {gs.spadesBroken ? '♠ led' : '♠ not led'}
         </div>
       </div>
     </div>
@@ -193,7 +149,7 @@ function TrickArea({
 }
 
 // ══════════════════════════════════════════════
-//  STATUS BAR TEXT
+//  STATUS TEXT
 // ══════════════════════════════════════════════
 function StatusText({ gs, trickPause, isHandDone }: {
   gs: GameState;
@@ -201,97 +157,24 @@ function StatusText({ gs, trickPause, isHandDone }: {
   isHandDone: boolean;
 }) {
   if (isHandDone) return <span>Hand complete</span>;
-  if (trickPause) {
-    const winner = trickPause.winner;
-    return <span>{SEAT_NAMES[winner]} takes the trick</span>;
-  }
+  if (trickPause) return <span>{SEAT_NAMES[trickPause.winner]} takes the trick</span>;
   const turn = gs.turn;
   if (gs.phase === 'bidding') {
-    if (turn === HUMAN) return <span>Your bid:</span>;
-    return (
-      <span>
-        {SEAT_NAMES[turn]} is bidding
-        <ThinkingDots />
-      </span>
-    );
+    if (turn === HUMAN) return <span>Choose your bid</span>;
+    return <span>{SEAT_NAMES[turn]} is bidding <ThinkingDots /></span>;
   }
   if (gs.phase === 'playing') {
-    if (turn === HUMAN) return <span>Your turn to play</span>;
-    return (
-      <span>
-        {SEAT_NAMES[turn]} is playing
-        <ThinkingDots />
-      </span>
-    );
+    if (turn === HUMAN) return <span>Your turn</span>;
+    return <span>{SEAT_NAMES[turn]} is playing <ThinkingDots /></span>;
   }
   return null;
 }
 
 function ThinkingDots() {
   return (
-    <span className="thinking-dots" style={{ marginLeft: 6 }}>
+    <span className="thinking-dots">
       <span /><span /><span />
     </span>
-  );
-}
-
-// ══════════════════════════════════════════════
-//  HAND (fan layout with ResizeObserver)
-// ══════════════════════════════════════════════
-function Hand({ cards, isPlay, isBid, legal, onPlay }: {
-  cards: Card[];
-  isPlay: boolean;
-  isBid: boolean;
-  legal: Set<Card>;
-  onPlay: (card: Card) => void;
-}) {
-  const outerRef = useRef<HTMLDivElement>(null);
-  const [dims, setDims] = useState({ w: 340, cardW: 56 });
-
-  useEffect(() => {
-    const el = outerRef.current;
-    if (!el) return;
-    const measure = () => {
-      const cw = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--cw').trim()
-      ) || 56;
-      setDims({ w: el.clientWidth, cardW: cw });
-    };
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    measure();
-    return () => ro.disconnect();
-  }, []);
-
-  const { w: containerW, cardW } = dims;
-  const cardH = Math.round(cardW * 78 / 56);
-  const n = cards.length;
-  const available = Math.max(containerW - 16, cardW);
-  const stride = n <= 1 ? 0 : Math.min(cardW + 28, (available - cardW) / (n - 1));
-  const totalW = n <= 1 ? cardW : Math.round(stride * (n - 1)) + cardW;
-
-  return (
-    <div ref={outerRef} className={`hand-outer${isBid ? ' hand--bidding' : ''}`}>
-      <div className="hand" style={{ width: totalW, height: cardH }}>
-        {cards.map((card, i) => {
-          const isLegal = isPlay && legal.has(card);
-          return (
-            <div
-              key={card}
-              className={`hcard${isLegal ? ' hcard--play' : ''}`}
-              style={{ left: Math.round(i * stride), zIndex: i + 1 }}
-              onClick={isLegal ? () => onPlay(card) : undefined}
-            >
-              <PlayingCard
-                card={card}
-                playable={isLegal}
-                illegal={isPlay && !legal.has(card)}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -306,7 +189,7 @@ function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
         {Array.from({ length: 14 }, (_, i) => (
           <button
             key={i}
-            className={`bid-btn ${i === 0 ? 'bid-btn--nil' : ''}`}
+            className={`bid-btn${i === 0 ? ' bid-btn--nil' : ''}`}
             onClick={() => onBid(i)}
           >
             {i === 0 ? 'NIL' : i}
@@ -318,18 +201,63 @@ function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
 }
 
 // ══════════════════════════════════════════════
+//  HAND  (suit rows — no fan, no ResizeObserver)
+// ══════════════════════════════════════════════
+function Hand({ cards, isPlay, isBid, legal, onPlay }: {
+  cards: Card[];
+  isPlay: boolean;
+  isBid: boolean;
+  legal: Set<Card>;
+  onPlay: (card: Card) => void;
+}) {
+  return (
+    <div className={`hand-area${isBid ? ' hand-area--bid' : ''}`}>
+      {SUIT_ORDER.map(suit => {
+        const suitCards = cards
+          .filter(c => suitOf(c) === suit)
+          .sort((a, b) => rankIxOf(b) - rankIxOf(a));
+        if (suitCards.length === 0) return null;
+        const isRed = suit === 1 || suit === 2;
+        return (
+          <div key={suit} className="suit-row">
+            <span className={`suit-label${isRed ? ' suit-label--red' : ''}`}>
+              {SUIT_GLYPHS[suit]}
+            </span>
+            {suitCards.map(card => {
+              const isLegal   = isPlay && legal.has(card);
+              const isIllegal = isPlay && !legal.has(card);
+              return (
+                <button
+                  key={card}
+                  className={[
+                    'chip',
+                    isRed ? 'chip--red' : '',
+                    isLegal ? 'chip--play' : '',
+                    isIllegal ? 'chip--dim' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={isLegal ? () => onPlay(card) : undefined}
+                  tabIndex={isLegal ? 0 : -1}
+                  aria-label={`${RANK_LABELS[rankIxOf(card)]} of ${ ['clubs','diamonds','hearts','spades'][suit]}`}
+                >
+                  {RANK_LABELS[rankIxOf(card)]}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
 //  HAND SUMMARY OVERLAY
 // ══════════════════════════════════════════════
-function HandSummaryOverlay({
-  data, onContinue,
-}: {
-  data: HandSummaryData;
-  onContinue: () => void;
-}) {
+function HandSummaryOverlay({ data, onContinue }: { data: HandSummaryData; onContinue: () => void }) {
   return (
     <div className="overlay">
       <div className="overlay-panel">
-        <h2>Hand {data.handNumber + 1} Results</h2>
+        <h2>Hand {data.handNumber + 1}</h2>
         <table className="score-table">
           <thead>
             <tr>
@@ -358,9 +286,7 @@ function HandSummaryOverlay({
           </tbody>
         </table>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <button className="btn btn--primary" onClick={onContinue}>
-            Continue
-          </button>
+          <button className="btn btn--primary" onClick={onContinue}>Continue</button>
         </div>
       </div>
     </div>
@@ -370,15 +296,14 @@ function HandSummaryOverlay({
 // ══════════════════════════════════════════════
 //  GAME OVER OVERLAY
 // ══════════════════════════════════════════════
-function GameOverOverlay({
-  scores, placements, onNewGame,
-}: {
+function GameOverOverlay({ scores, placements, onNewGame }: {
   scores: number[];
   placements: number[];
   onNewGame: () => void;
 }) {
-  const order = [0, 1, 2, 3].sort((a, b) => scores[b]! - scores[a]!);
+  const order  = [0, 1, 2, 3].slice().sort((a, b) => scores[b]! - scores[a]!);
   const medals = ['🥇', '🥈', '🥉', '4️⃣'];
+  const place  = placements[HUMAN]!;
 
   return (
     <div className="overlay">
@@ -386,29 +311,23 @@ function GameOverOverlay({
         <h2>Game Over</h2>
         <div className="podium">
           {order.map((seat, rank) => (
-            <div
-              key={seat}
-              className={[
-                'podium__row',
-                rank === 0 ? 'podium__row--1st' : '',
-                seat === HUMAN ? 'podium__row--you' : '',
-              ].filter(Boolean).join(' ')}
-            >
+            <div key={seat} className={[
+              'podium__row',
+              rank === 0 ? 'podium__row--1st' : '',
+              seat === HUMAN ? 'podium__row--you' : '',
+            ].filter(Boolean).join(' ')}>
               <span className="podium__rank">{medals[rank]}</span>
               <span className="podium__name">{SEAT_NAMES[seat]}</span>
               <span className="podium__score">{scores[seat]}</span>
             </div>
           ))}
         </div>
-        {placements[HUMAN] === 2
-          ? <p style={{ textAlign: 'center', color: '#6ee86e', fontWeight: 700, marginBottom: 16 }}>You won! 🎉</p>
-          : placements[HUMAN] === 0
-          ? <p style={{ textAlign: 'center', opacity: 0.6, marginBottom: 16 }}>Better luck next time.</p>
-          : <p style={{ textAlign: 'center', color: '#e8c060', marginBottom: 16 }}>Well played!</p>}
+        <p style={{ textAlign: 'center', marginBottom: 16, fontSize: 14,
+          color: place === 2 ? '#6adb6a' : place === 0 ? 'var(--text-dim)' : 'var(--gold)' }}>
+          {place === 2 ? 'You won!' : place === 0 ? 'Better luck next time.' : 'Well played!'}
+        </p>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <button className="btn btn--primary" onClick={onNewGame}>
-            Play Again
-          </button>
+          <button className="btn btn--primary" onClick={onNewGame}>Play Again</button>
         </div>
       </div>
     </div>
@@ -422,21 +341,17 @@ function StartScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="start-screen">
       <div className="start-screen__logo">♠</div>
-      <div>
+      <div style={{ textAlign: 'center' }}>
         <h1 className="start-screen__title">Solo Cutthroat Spades</h1>
-        <p className="start-screen__subtitle">
-          4-player free-for-all. First to 40 wins.
-        </p>
+        <p className="start-screen__subtitle">4-player free-for-all · First to 40</p>
       </div>
       <ul className="start-screen__rules">
         <li>Bid your tricks — make your bid or get set</li>
         <li>Bid NIL to score +50 by taking zero tricks</li>
-        <li>Bags (over-tricks) accumulate — every 3 costs 30 pts</li>
+        <li>3 over-tricks (bags) costs 30 pts</li>
         <li>Spades always trump</li>
       </ul>
-      <button className="btn btn--primary" onClick={onStart}>
-        Deal Cards
-      </button>
+      <button className="btn btn--primary" onClick={onStart}>Deal Cards</button>
     </div>
   );
 }
@@ -444,9 +359,7 @@ function StartScreen({ onStart }: { onStart: () => void }) {
 // ══════════════════════════════════════════════
 //  GAME TABLE
 // ══════════════════════════════════════════════
-function GameTable({
-  gs, pk, trickPause, onBid, onPlay,
-}: {
+function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
   gs: GameState;
   pk: PublicKnowledge;
   trickPause: TrickPause | null;
@@ -455,64 +368,47 @@ function GameTable({
 }) {
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
   const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
-  const legal = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
-  const humanHand = gs.hands[HUMAN]!;
-  const isHandDone = gs.phase === 'handDone';
-
-  // Sort hand: clubs, diamonds, hearts, spades; then by rank
-  const sortedHand = humanHand.slice().sort((a, b) => {
-    const sa = suitOf(a), sb = suitOf(b);
-    if (sa !== sb) return sa - sb;
-    return rankIxOf(a) - rankIxOf(b);
-  });
+  const legal       = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
+  const isHandDone  = gs.phase === 'handDone';
 
   return (
     <div className="table">
       <div className="table__header">
-        <span>♠ Spades</span>
-        <span className="subtitle">Hand {gs.handNumber + 1} · First to 40</span>
-        <span className="score">You: {gs.scores[HUMAN]}</span>
+        <span className="hdr__title">♠ Spades</span>
+        <span className="hdr__hand">Hand {gs.handNumber + 1} · First to 40</span>
+        <span className="hdr__score">You: {gs.scores[HUMAN]}</span>
       </div>
 
-      <div className="table__felt">
-        <div className="player player--west">
-          <OppHand count={gs.hands[3]!.length} />
-          <PlayerBadge seat={3} gs={gs} isActive={gs.turn === 3 && !trickPause} />
+      <div className="table__body">
+        <div className="felt">
+          <div className="seat seat--north">
+            <Badge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
+          </div>
+          <div className="seat seat--west">
+            <Badge seat={3} gs={gs} isActive={gs.turn === 3 && !trickPause} />
+          </div>
+          <div className="seat seat--east">
+            <Badge seat={1} gs={gs} isActive={gs.turn === 1 && !trickPause} />
+          </div>
+          <TrickArea gs={gs} trickPause={trickPause} />
+          <div className="seat seat--south">
+            <Badge seat={HUMAN} gs={gs} isActive={isHumanBid || isHumanPlay} />
+          </div>
         </div>
 
-        <div className="player player--north">
-          <OppHand count={gs.hands[2]!.length} />
-          <PlayerBadge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
+        <div className="panel">
+          <div className="status-bar">
+            <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
+          </div>
+          {isHumanBid && <BidSelector onBid={onBid} />}
+          <Hand
+            cards={gs.hands[HUMAN]!}
+            isPlay={isHumanPlay}
+            isBid={isHumanBid}
+            legal={legal}
+            onPlay={onPlay}
+          />
         </div>
-
-        <div className="player player--east">
-          <OppHand count={gs.hands[1]!.length} />
-          <PlayerBadge seat={1} gs={gs} isActive={gs.turn === 1 && !trickPause} />
-        </div>
-
-        <TrickArea gs={gs} trickPause={trickPause} />
-
-        <div className="player player--south">
-          <PlayerBadge seat={HUMAN} gs={gs} isActive={isHumanBid || isHumanPlay} />
-        </div>
-      </div>
-
-      <div className="human-area">
-        <div className="status-bar">
-          <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
-        </div>
-
-        {/* Bid grid — visible above hand when it's your turn to bid */}
-        {isHumanBid && <BidSelector onBid={onBid} />}
-
-        {/* Hand — always visible so you can see your cards when bidding */}
-        <Hand
-          cards={sortedHand}
-          isPlay={isHumanPlay}
-          isBid={isHumanBid}
-          legal={legal}
-          onPlay={onPlay}
-        />
       </div>
     </div>
   );
@@ -525,7 +421,6 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>({ tag: 'start' });
   const rngRef = useRef<Rng | null>(null);
 
-  // ── Start / New Game ─────────────────────────
   const startGame = useCallback(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
     rngRef.current = rng;
@@ -533,7 +428,6 @@ export default function App() {
     setAppState({ tag: 'game', gs, pk, trickPause: null });
   }, []);
 
-  // ── Human actions ────────────────────────────
   const handleBid = useCallback((bid: number) => {
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
@@ -551,20 +445,20 @@ export default function App() {
 
       const gs  = cloneState(prev.gs);
       const pk  = clonePk(prev.pk);
-      const wasLead          = gs.trick.length === 0;
-      const ledBefore        = gs.ledSuit;
-      const willFinishTrick  = gs.trick.length === NUM_PLAYERS - 1;
-      const trickSnapshot    = willFinishTrick ? gs.trick.map(t => ({ ...t })) : null;
+      const wasLead         = gs.trick.length === 0;
+      const ledBefore       = gs.ledSuit;
+      const willFinish      = gs.trick.length === NUM_PLAYERS - 1;
+      const trickSnapshot   = willFinish ? gs.trick.map(t => ({ ...t })) : null;
 
       applyPlay(gs, card);
       observePlay(pk, HUMAN, card, ledBefore, wasLead);
 
-      if (willFinishTrick) {
+      if (willFinish) {
         return {
           ...prev, gs, pk,
           trickPause: {
             entries: [...trickSnapshot!, { seat: HUMAN, card }] as TrickEntry[],
-            winner: gs.turn,
+            winner:  gs.turn,
             ledSuit: ledBefore!,
           },
         };
@@ -573,53 +467,44 @@ export default function App() {
     });
   }, []);
 
-  // ── Continue after hand summary ───────────────
   const handleContinue = useCallback(() => {
     setAppState(prev => {
       if (prev.tag !== 'hand-summary') return prev;
-      const { nextGs, nextPk } = prev;
-      return { tag: 'game', gs: nextGs, pk: nextPk, trickPause: null };
+      return { tag: 'game', gs: prev.nextGs, pk: prev.nextPk, trickPause: null };
     });
   }, []);
 
-  // ── AI effect: drives AI turns + trick-pause ──
+  // AI + trick-pause driver
   useEffect(() => {
     if (appState.tag !== 'game') return;
     const { gs, pk, trickPause } = appState;
 
-    // 1) Trick pause → clear after delay, then maybe transition to hand summary
     if (trickPause !== null) {
       const id = window.setTimeout(() => {
         setAppState(prev => {
           if (prev.tag !== 'game' || prev.trickPause === null) return prev;
-          if (prev.gs.phase === 'handDone') {
-            return buildHandSummaryState(prev.gs, prev.pk, rngRef.current!);
-          }
+          if (prev.gs.phase === 'handDone') return buildHandSummaryState(prev.gs, prev.pk, rngRef.current!);
           return { ...prev, trickPause: null };
         });
       }, TRICK_PAUSE);
       return () => window.clearTimeout(id);
     }
 
-    // 2) Hand done without trick pause (shouldn't happen normally, safety net)
     if (gs.phase === 'handDone') {
       setAppState(buildHandSummaryState(gs, pk, rngRef.current!));
       return;
     }
 
-    // 3) Human's turn → wait for input
     if (gs.turn === HUMAN) return;
 
-    // 4) AI's turn → schedule move
     const delay = gs.phase === 'bidding' ? AI_BID_DELAY : AI_PLAY_DELAY;
     const id = window.setTimeout(() => {
       setAppState(prev => {
         if (prev.tag !== 'game' || prev.trickPause !== null) return prev;
-        if (prev.gs.phase === 'handDone') return prev;
-        if (prev.gs.turn === HUMAN) return prev;
+        if (prev.gs.phase === 'handDone' || prev.gs.turn === HUMAN) return prev;
 
-        const gs  = cloneState(prev.gs);
-        const pk  = clonePk(prev.pk);
+        const gs   = cloneState(prev.gs);
+        const pk   = clonePk(prev.pk);
         const seat = gs.turn;
         const info = buildInfoSet(gs, pk, seat);
 
@@ -628,11 +513,10 @@ export default function App() {
           return { ...prev, gs, pk };
         }
 
-        // Playing
-        const wasLead         = gs.trick.length === 0;
-        const ledBefore       = gs.ledSuit;
-        const willFinish      = gs.trick.length === NUM_PLAYERS - 1;
-        const trickSnapshot   = willFinish ? gs.trick.map(t => ({ ...t })) : null;
+        const wasLead       = gs.trick.length === 0;
+        const ledBefore     = gs.ledSuit;
+        const willFinish    = gs.trick.length === NUM_PLAYERS - 1;
+        const trickSnapshot = willFinish ? gs.trick.map(t => ({ ...t })) : null;
 
         const card = AI_AGENTS[seat]!.chooseCard(info);
         applyPlay(gs, card);
@@ -643,7 +527,7 @@ export default function App() {
             ...prev, gs, pk,
             trickPause: {
               entries: [...trickSnapshot!, { seat, card }] as TrickEntry[],
-              winner: gs.turn,
+              winner:  gs.turn,
               ledSuit: ledBefore!,
             },
           };
@@ -655,7 +539,7 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [appState]);
 
-  // ── Render ────────────────────────────────────
+  // ── Render ─────────────────────────────────
   if (appState.tag === 'start') {
     return <StartScreen onStart={startGame} />;
   }
@@ -663,12 +547,7 @@ export default function App() {
   if (appState.tag === 'game') {
     const { gs, pk, trickPause } = appState;
     return (
-      <>
-        <GameTable
-          gs={gs} pk={pk} trickPause={trickPause}
-          onBid={handleBid} onPlay={handlePlay}
-        />
-      </>
+      <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} />
     );
   }
 
@@ -676,11 +555,7 @@ export default function App() {
     const { data, nextGs, nextPk } = appState;
     return (
       <>
-        {/* Keep the table visible behind the overlay */}
-        <GameTable
-          gs={nextGs} pk={nextPk} trickPause={null}
-          onBid={() => {}} onPlay={() => {}}
-        />
+        <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} />
         <HandSummaryOverlay data={data} onContinue={handleContinue} />
       </>
     );
@@ -689,7 +564,7 @@ export default function App() {
   if (appState.tag === 'game-over') {
     const { scores, placements } = appState;
     return (
-      <div style={{ flex: 1, background: 'var(--felt-dark)' }}>
+      <div style={{ flex: 1, background: 'var(--bg)' }}>
         <GameOverOverlay scores={scores} placements={placements} onNewGame={startGame} />
       </div>
     );
@@ -698,7 +573,7 @@ export default function App() {
   return null;
 }
 
-// ── Build hand-summary state ───────────────────
+// ── Build hand-summary state ──────────────────
 function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): AppState {
   const bids   = gs.bids.map(b => b ?? 0);
   const result = scoreHand(bids, gs.tricksWon, gs.bags);
@@ -714,18 +589,12 @@ function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): Ap
   };
 
   if (isGameOver(scoresAfter)) {
-    return {
-      tag: 'game-over',
-      scores: scoresAfter,
-      placements: placementRewards(scoresAfter),
-    };
+    return { tag: 'game-over', scores: scoresAfter, placements: placementRewards(scoresAfter) };
   }
 
-  // Prepare next hand
   const nextGs = cloneState(gs);
   nextGs.scores = scoresAfter.slice();
   nextGs.bags   = result.bagsAfter.slice();
   const { gs: dealtGs, pk: dealtPk } = startHandState(nextGs, rng);
-
   return { tag: 'hand-summary', data, nextGs: dealtGs, nextPk: dealtPk };
 }
