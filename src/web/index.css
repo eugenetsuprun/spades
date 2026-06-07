@@ -240,17 +240,23 @@ html, body {
   padding: 0 12px;
 }
 
-/* Hand */
-.hand {
-  display: flex; align-items: flex-end; justify-content: center;
-  padding: 8px 4px 6px;
-  min-height: calc(var(--ch) + 14px);
+/* Hand fan layout */
+.hand-outer {
+  width: 100%;
+  padding: 18px 8px 6px;
   overflow: visible;
 }
-.hand .card + .card { margin-left: -18px; }
-/* Push subsequent cards right when hovering a card */
-.hand .card--playable:hover ~ .card { transform: translateX(8px); }
-
+.hand {
+  position: relative;
+  margin: 0 auto;
+}
+.hcard {
+  position: absolute;
+  top: 0;
+  cursor: default;
+}
+.hcard--play { cursor: pointer; }
+.hcard--play:hover, .hcard--play:active { z-index: 100 !important; }
 /* Cards in bidding mode: visible but passive */
 .hand--bidding .card { opacity: 0.55; cursor: default; transform: none !important; }
 
@@ -326,10 +332,6 @@ html, body {
   /* Single-row bid grid */
   .bid-grid { grid-template-columns: repeat(14, 1fr); gap: 3px; }
   .bid-btn  { font-size: 13px; padding: 7px 1px; border-radius: 6px; }
-
-  /* Compact hand */
-  .hand { padding: 5px 4px 4px; min-height: calc(var(--ch) + 10px); }
-  .hand .card + .card { margin-left: -20px; }
 
   /* Status bar stays same */
 }

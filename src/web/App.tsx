@@ -236,6 +236,66 @@ function ThinkingDots() {
 }
 
 // ══════════════════════════════════════════════
+//  HAND (fan layout with ResizeObserver)
+// ══════════════════════════════════════════════
+function Hand({ cards, isPlay, isBid, legal, onPlay }: {
+  cards: Card[];
+  isPlay: boolean;
+  isBid: boolean;
+  legal: Set<Card>;
+  onPlay: (card: Card) => void;
+}) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 340, cardW: 56 });
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const cw = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--cw').trim()
+      ) || 56;
+      setDims({ w: el.clientWidth, cardW: cw });
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
+
+  const { w: containerW, cardW } = dims;
+  const cardH = Math.round(cardW * 78 / 56);
+  const n = cards.length;
+  const available = Math.max(containerW - 16, cardW);
+  const stride = n <= 1 ? 0 : Math.min(cardW + 28, (available - cardW) / (n - 1));
+  const totalW = n <= 1 ? cardW : Math.round(stride * (n - 1)) + cardW;
+
+  return (
+    <div ref={outerRef} className={`hand-outer${isBid ? ' hand--bidding' : ''}`}>
+      <div className="hand" style={{ width: totalW, height: cardH }}>
+        {cards.map((card, i) => {
+          const isLegal = isPlay && legal.has(card);
+          return (
+            <div
+              key={card}
+              className={`hcard${isLegal ? ' hcard--play' : ''}`}
+              style={{ left: Math.round(i * stride), zIndex: i + 1 }}
+              onClick={isLegal ? () => onPlay(card) : undefined}
+            >
+              <PlayingCard
+                card={card}
+                playable={isLegal}
+                illegal={isPlay && !legal.has(card)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
 //  BID SELECTOR
 // ══════════════════════════════════════════════
 function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
@@ -446,17 +506,13 @@ function GameTable({
         {isHumanBid && <BidSelector onBid={onBid} />}
 
         {/* Hand — always visible so you can see your cards when bidding */}
-        <div className={`hand${isHumanBid ? ' hand--bidding' : ''}`}>
-          {sortedHand.map(card => (
-            <PlayingCard
-              key={card}
-              card={card}
-              playable={isHumanPlay && legal.has(card)}
-              illegal={isHumanPlay && !legal.has(card)}
-              onClick={isHumanPlay ? () => onPlay(card) : undefined}
-            />
-          ))}
-        </div>
+        <Hand
+          cards={sortedHand}
+          isPlay={isHumanPlay}
+          isBid={isHumanBid}
+          legal={legal}
+          onPlay={onPlay}
+        />
       </div>
     </div>
   );
