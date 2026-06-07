@@ -442,7 +442,6 @@ export default function App() {
   }, []);
 
   const handleBid = useCallback((bid: number) => {
-    navigator.vibrate?.(40);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
       const gs = cloneState(prev.gs);
@@ -452,7 +451,6 @@ export default function App() {
   }, []);
 
   const handlePlay = useCallback((card: Card) => {
-    navigator.vibrate?.(80);
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.trickPause !== null) return prev;
       if (prev.gs.phase !== 'playing' || prev.gs.turn !== HUMAN) return prev;
@@ -552,6 +550,17 @@ export default function App() {
     }, delay);
 
     return () => window.clearTimeout(id);
+  }, [appState]);
+
+  // Haptic when it becomes the human's turn
+  const prevIsHumanTurnRef = useRef(true);
+  useEffect(() => {
+    if (appState.tag !== 'game') { prevIsHumanTurnRef.current = false; return; }
+    const { gs, trickPause } = appState;
+    const isHumanTurn = trickPause === null && gs.turn === HUMAN &&
+      (gs.phase === 'bidding' || gs.phase === 'playing');
+    if (isHumanTurn && !prevIsHumanTurnRef.current) navigator.vibrate?.(100);
+    prevIsHumanTurnRef.current = isHumanTurn;
   }, [appState]);
 
   // Auto-play when only one legal move available
