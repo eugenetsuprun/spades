@@ -2,7 +2,7 @@ name: Deploy PWA to GitHub Pages
 
 on:
   push:
-    branches: [main, master, claude/pwa-android-card-game-ui-eqhlq]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -37,6 +37,8 @@ jobs:
           GITHUB_PAGES: '1'
 
       - uses: actions/configure-pages@v4
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
