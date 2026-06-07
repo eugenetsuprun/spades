@@ -110,29 +110,6 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
       <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
       <div className="badge__bid-row">{bidStr} · {tricks}</div>
-      {!isHuman && (
-        <div className="badge__opp-hand">
-          {SUIT_ORDER.map(suit => {
-            const suitCards = gs.hands[seat]!
-              .filter(c => suitOf(c) === suit)
-              .sort((a, b) => rankIxOf(b) - rankIxOf(a));
-            if (!suitCards.length) return null;
-            const red = suit === 1 || suit === 2;
-            return (
-              <div key={suit} className="badge__opp-row">
-                <span className={`badge__opp-glyph${red ? ' badge__opp-glyph--red' : ''}`}>
-                  {SUIT_GLYPHS[suit]}
-                </span>
-                {suitCards.map(c => (
-                  <span key={c} className={`badge__opp-chip${red ? ' badge__opp-chip--red' : ''}`}>
-                    {RANK_LABELS[rankIxOf(c)]}
-                  </span>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
