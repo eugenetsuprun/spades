@@ -99,40 +99,16 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
   const tricks = gs.tricksWon[seat]!;
   const score  = gs.scores[seat]!;
   const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
-  const isHuman = seat === HUMAN;
 
   return (
     <div className={[
       'badge',
       isActive ? 'badge--active' : '',
-      isHuman ? 'badge--you' : '',
+      seat === HUMAN ? 'badge--you' : '',
     ].filter(Boolean).join(' ')}>
       <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
       <div className="badge__bid-row">{bidStr} · {tricks}</div>
-      {!isHuman && (
-        <div className="badge__opp-hand">
-          {SUIT_ORDER.map(suit => {
-            const suitCards = gs.hands[seat]!
-              .filter(c => suitOf(c) === suit)
-              .sort((a, b) => rankIxOf(b) - rankIxOf(a));
-            if (!suitCards.length) return null;
-            const red = suit === 1 || suit === 2;
-            return (
-              <div key={suit} className="badge__opp-row">
-                <span className={`badge__opp-glyph${red ? ' badge__opp-glyph--red' : ''}`}>
-                  {SUIT_GLYPHS[suit]}
-                </span>
-                {suitCards.map(c => (
-                  <span key={c} className={`badge__opp-chip${red ? ' badge__opp-chip--red' : ''}`}>
-                    {RANK_LABELS[rankIxOf(c)]}
-                  </span>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -404,7 +380,6 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
       </div>
 
       <div className="table__body">
-        {/* Left/top: felt with opponents and trick */}
         <div className="felt">
           <div className="seat seat--north">
             <Badge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
@@ -421,7 +396,6 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay }: {
           </div>
         </div>
 
-        {/* Right/bottom: status + optional bid + hand */}
         <div className="panel">
           <div className="status-bar">
             <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
