@@ -18,7 +18,7 @@ export default defineConfig({
         theme_color: '#1a5c2e',
         background_color: '#0d2b18',
         display: 'standalone',
-        orientation: 'portrait-primary',
+        orientation: 'landscape-primary',
         icons: [
           {
             src: '/icon-192.svg',
