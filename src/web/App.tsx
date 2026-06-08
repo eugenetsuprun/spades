@@ -109,10 +109,9 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
       isActive ? 'badge--active' : '',
       isHuman ? 'badge--you' : '',
     ].filter(Boolean).join(' ')}>
-      <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
       <div className="badge__bid-row">bid {bidStr}</div>
-      <div className="badge__won-row">{tricks} won</div>
+      <div className="badge__won-row">took {tricks}</div>
     </div>
   );
 }
@@ -144,8 +143,8 @@ function TrickArea({ gs, trickPause, isHumanPlay }: {
           );
         })}
         <div className="trick-meta">
-          {gs.completedTricks}/13<br />
-          {gs.spadesBroken ? '♠ led' : '♠ not led'}
+          {gs.completedTricks}/13
+          {gs.spadesBroken && <><br />♠ led</>}
         </div>
       </div>
     </div>
@@ -363,6 +362,28 @@ function StartScreen({ onStart }: { onStart: () => void }) {
 // ══════════════════════════════════════════════
 //  GAME TABLE
 // ══════════════════════════════════════════════
+function RulesOverlay({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="overlay-panel" onClick={e => e.stopPropagation()}>
+        <h2>How to Play</h2>
+        <ul className="rules-list">
+          <li>Each player bids how many tricks they'll take.</li>
+          <li>Make your bid exactly — extra tricks are bags.</li>
+          <li>Every 3 bags costs you 30 points.</li>
+          <li>Bid NIL to score +50 by taking zero tricks.</li>
+          <li>Spades are always trump and can't lead until broken.</li>
+          <li>Highest card of the led suit wins unless trumped.</li>
+          <li>First to 40 points wins.</li>
+        </ul>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+          <button className="btn btn--primary" onClick={onClose}>Got it</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
   gs: GameState;
   pk: PublicKnowledge;
@@ -371,6 +392,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
   onPlay: (card: Card) => void;
   onRestart: () => void;
 }) {
+  const [showRules, setShowRules] = useState(false);
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
   const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
   const legal       = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
@@ -378,11 +400,13 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
 
   return (
     <div className="table">
+      {showRules && <RulesOverlay onClose={() => setShowRules(false)} />}
       <div className="table__header">
-        <span className="hdr__title">♠ Spades</span>
+        <span className="hdr__title">♠ Solo Spades</span>
         <span className="hdr__hand">Hand {gs.handNumber + 1} · First to 40</span>
         <div className="hdr__right">
           <span className="hdr__score">You: {gs.scores[HUMAN]}</span>
+          <button className="hdr__restart-btn" onClick={() => setShowRules(true)} aria-label="Rules">?</button>
           <button className="hdr__restart-btn" onClick={onRestart} aria-label="New game">↺</button>
         </div>
       </div>
