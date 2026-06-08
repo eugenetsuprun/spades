@@ -1,4 +1,6 @@
+/// <reference types="vite-plugin-pwa/react" />
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import type { GameState, TrickEntry } from '../engine/state.js';
 import { createInitialState, cloneState, nextSeat, CARDS_PER_HAND, NUM_PLAYERS } from '../engine/state.js';
 import type { Card, Suit } from '../engine/cards.js';
@@ -426,6 +428,8 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
 //  ROOT APP
 // ══════════════════════════════════════════════
 export default function App() {
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+
   const rngRef = useRef<Rng | null>(null);
   const [appState, setAppState] = useState<AppState>(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
@@ -575,10 +579,22 @@ export default function App() {
   }, [appState, handlePlay]);
 
   // ── Render ─────────────────────────────────
+  const updateBanner = needRefresh ? (
+    <div className="update-banner">
+      <span>Update available</span>
+      <button className="update-banner__btn" onClick={() => updateServiceWorker(true)}>
+        Reload
+      </button>
+    </div>
+  ) : null;
+
   if (appState.tag === 'game') {
     const { gs, pk, trickPause } = appState;
     return (
-      <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} />
+      <>
+        {updateBanner}
+        <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} />
+      </>
     );
   }
 
@@ -586,6 +602,7 @@ export default function App() {
     const { data, nextGs, nextPk } = appState;
     return (
       <>
+        {updateBanner}
         <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} onRestart={startGame} />
         <HandSummaryOverlay data={data} onContinue={handleContinue} />
       </>
@@ -595,9 +612,12 @@ export default function App() {
   if (appState.tag === 'game-over') {
     const { scores, placements } = appState;
     return (
-      <div style={{ flex: 1, background: 'var(--bg)' }}>
-        <GameOverOverlay scores={scores} placements={placements} onNewGame={startGame} />
-      </div>
+      <>
+        {updateBanner}
+        <div style={{ flex: 1, background: 'var(--bg)' }}>
+          <GameOverOverlay scores={scores} placements={placements} onNewGame={startGame} />
+        </div>
+      </>
     );
   }
 
