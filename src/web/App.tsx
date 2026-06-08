@@ -360,6 +360,25 @@ function StartScreen({ onStart }: { onStart: () => void }) {
 }
 
 // ══════════════════════════════════════════════
+//  YOU BAR  (bid / took strip at bottom)
+// ══════════════════════════════════════════════
+function YouBar({ gs, isActive }: { gs: GameState; isActive: boolean }) {
+  const bid    = gs.bids[HUMAN];
+  const tricks = gs.tricksWon[HUMAN]!;
+  const score  = gs.scores[HUMAN]!;
+  const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
+  return (
+    <div className={`you-bar${isActive ? ' you-bar--active' : ''}`}>
+      <span className="you-bar__score">{score}</span>
+      <span className="you-bar__sep" />
+      <span className="you-bar__stat">bid {bidStr}</span>
+      <span className="you-bar__dim">·</span>
+      <span className="you-bar__took">took {tricks}</span>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
 //  GAME TABLE
 // ══════════════════════════════════════════════
 function RulesOverlay({ onClose }: { onClose: () => void }) {
@@ -412,7 +431,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
       </div>
 
       <div className="table__body">
-        {/* Left/top: felt with opponents and trick */}
+        {/* Opponents + trick */}
         <div className="felt">
           <div className="seat seat--north">
             <Badge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
@@ -424,12 +443,9 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
             <Badge seat={1} gs={gs} isActive={gs.turn === 1 && !trickPause} />
           </div>
           <TrickArea gs={gs} trickPause={trickPause} isHumanPlay={isHumanPlay} />
-          <div className="seat seat--south">
-            <Badge seat={HUMAN} gs={gs} isActive={isHumanBid || isHumanPlay} />
-          </div>
         </div>
 
-        {/* Right/bottom: status + optional bid + hand */}
+        {/* Interactive panel: status + bid/hand + your stats at bottom */}
         <div className="panel">
           <div className="status-bar">
             <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
@@ -442,6 +458,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
             legal={legal}
             onPlay={onPlay}
           />
+          <YouBar gs={gs} isActive={isHumanBid || isHumanPlay} />
         </div>
       </div>
     </div>
