@@ -14,6 +14,12 @@ import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
 import { SearchAgent } from '../ai/agents.js';
 import { Rng } from '../engine/rng.js';
 
+declare const __BUILD_TIME__: string;
+const BUILD_LABEL = (() => {
+  try { const d = new Date(__BUILD_TIME__); return d.toISOString().slice(0,16).replace('T',' '); }
+  catch { return ''; }
+})();
+
 // ── Constants ─────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
@@ -144,7 +150,6 @@ function TrickArea({ gs, trickPause, isHumanPlay }: {
         })}
         <div className="trick-meta">
           {gs.completedTricks}/13
-          {gs.spadesBroken && <><br />♠ led</>}
         </div>
       </div>
     </div>
@@ -374,6 +379,7 @@ function YouBar({ gs, isActive }: { gs: GameState; isActive: boolean }) {
       <span className="you-bar__stat">bid {bidStr}</span>
       <span className="you-bar__dim">·</span>
       <span className="you-bar__took">took {tricks}</span>
+      {BUILD_LABEL && <span className="you-bar__time">{BUILD_LABEL}</span>}
     </div>
   );
 }
