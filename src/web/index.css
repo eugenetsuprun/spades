@@ -112,7 +112,7 @@ html, body {
 .badge__name    { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; color: var(--text-dim); }
 .badge__score   { font-size: 18px; font-weight: 800; color: var(--gold); line-height: 1.2; }
 .badge__bid-row { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 3px; }
-.badge__won-row { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-top: 1px; }
+.badge__won-row { font-size: 14px; font-weight: 600; color: rgba(224,224,240,0.6); margin-top: 1px; }
 
 /* Mini opponent hand chips inside badge */
 .badge__opp-hand {
@@ -157,7 +157,7 @@ html, body {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  font-size: 10px; color: var(--text-dim);
+  font-size: 12px; color: rgba(224,224,240,0.55);
   line-height: 1.7;
   pointer-events: none;
   white-space: nowrap;
@@ -213,7 +213,7 @@ html, body {
   height: 36px;
   padding: 0 14px;
   display: flex; align-items: center;
-  font-size: 12px; font-weight: 600;
+  font-size: 14px; font-weight: 600;
   color: var(--gold);
   border-bottom: 1px solid var(--border);
 }
@@ -225,8 +225,8 @@ html, body {
   border-bottom: 1px solid var(--border);
 }
 .bid-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
-  color: var(--text-dim); margin-bottom: 5px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.05em;
+  color: rgba(224,224,240,0.55); margin-bottom: 5px;
 }
 .bid-grid {
   display: grid;
@@ -296,10 +296,10 @@ html, body {
 }
 .chip--play:hover  { background: var(--surface3); transform: translateY(-2px); }
 .chip--play:active { transform: scale(0.91); background: var(--surface3); }
-.chip--dim { opacity: 0.18; pointer-events: none; }
+.chip--dim { opacity: 0.38; pointer-events: none; }
 
 /* All chips dimmed during bidding */
-.hand-area--bid .chip { opacity: 0.35; pointer-events: none; }
+.hand-area--bid .chip { opacity: 0.5; pointer-events: none; }
 
 /* ── Thinking dots ── */
 .thinking-dots {
