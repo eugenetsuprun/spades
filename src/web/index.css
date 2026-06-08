@@ -89,7 +89,7 @@ html, body {
 .hdr__restart-btn:hover  { color: var(--text); background: var(--surface2); }
 .hdr__restart-btn:active { opacity: 0.6; }
 
-/* Body: felt (left/top) + panel (right/bottom) */
+/* Body: felt (top) + panel (bottom) */
 .table__body {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
@@ -104,17 +104,15 @@ html, body {
   display: grid;
   grid-template-areas:
     ".    north ."
-    "west trick east"
-    ".    south .";
+    "west trick east";
   grid-template-columns: 84px 1fr 84px;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   padding: 8px;
   gap: 6px;
   align-items: center;
 }
 
 .seat--north { grid-area: north; justify-self: center; width: 100%; max-width: 200px; }
-.seat--south { grid-area: south; justify-self: center; }
 .seat--west  { grid-area: west;  align-self: flex-start; padding-top: 4px; }
 .seat--east  { grid-area: east;  align-self: flex-start; padding-top: 4px; }
 
@@ -136,6 +134,22 @@ html, body {
 .badge__score   { font-size: 20px; font-weight: 800; color: var(--gold); line-height: 1.2; }
 .badge__bid-row { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 3px; }
 .badge__won-row { font-size: 16px; font-weight: 600; color: rgba(224,224,240,0.6); margin-top: 1px; }
+
+/* ── You bar (bid/took strip at bottom of panel) ── */
+.you-bar {
+  flex-shrink: 0;
+  height: 46px;
+  padding: 0 16px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.you-bar--active { background: var(--surface2); border-top-color: var(--border-hi); }
+.you-bar__score { font-size: 22px; font-weight: 800; color: var(--gold); min-width: 28px; }
+.you-bar__sep   { flex: 1; }
+.you-bar__stat  { font-size: 18px; font-weight: 700; color: var(--text); }
+.you-bar__dim   { color: var(--text-dim); font-size: 16px; }
+.you-bar__took  { font-size: 18px; font-weight: 600; color: rgba(224,224,240,0.6); }
 
 /* Mini opponent hand chips inside badge */
 .badge__opp-hand {
@@ -219,7 +233,7 @@ html, body {
 }
 
 /* ════════════════════════════════════════
-   PANEL  (status + bid + hand)
+   PANEL  (status + bid + hand + you-bar)
 ════════════════════════════════════════ */
 .panel {
   flex-shrink: 0;

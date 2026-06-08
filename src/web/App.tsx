@@ -14,14 +14,14 @@ import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
 import { SearchAgent } from '../ai/agents.js';
 import { Rng } from '../engine/rng.js';
 
-// ── Constants ───────────────────────────────
+// ── Constants ─────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
 const AI_BID_DELAY  = 380;
 const AI_PLAY_DELAY = 460;
 const TRICK_PAUSE   = 900;
 
-// ── Types ────────────────────────────────────
+// ── Types ──────────────────────────────
 interface TrickPause {
   entries: TrickEntry[];
   winner: number;
@@ -43,7 +43,7 @@ type AppState =
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
   | { tag: 'game-over'; scores: number[]; placements: number[] };
 
-// ── Helpers ──────────────────────────────────
+// ── Helpers ────────────────────────────
 function clonePk(pk: PublicKnowledge): PublicKnowledge {
   return { played: pk.played.slice(), voids: pk.voids.map(v => v.slice()) };
 }
@@ -266,7 +266,7 @@ function HandSummaryOverlay({ data, onContinue }: { data: HandSummaryData; onCon
             <tr>
               <th>Player</th>
               <th className="col-num">Bid</th>
-              <th className="col-num">Took</th>
+              <th className="col-num">Won</th>
               <th className="col-num">+/−</th>
               <th className="col-num">Total</th>
             </tr>
@@ -338,7 +338,48 @@ function GameOverOverlay({ scores, placements, onNewGame }: {
 }
 
 // ════════════════════════════════════════════
-//  RULES OVERLAY
+//  START SCREEN
+// ════════════════════════════════════════════
+function StartScreen({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="start-screen">
+      <div className="start-screen__logo">♠</div>
+      <div style={{ textAlign: 'center' }}>
+        <h1 className="start-screen__title">Solo Cutthroat Spades</h1>
+        <p className="start-screen__subtitle">4-player free-for-all · First to 40</p>
+      </div>
+      <ul className="start-screen__rules">
+        <li>Bid your tricks — make your bid or get set</li>
+        <li>Bid NIL to score +50 by taking zero tricks</li>
+        <li>3 over-tricks (bags) costs 30 pts</li>
+        <li>Spades always trump</li>
+      </ul>
+      <button className="btn btn--primary" onClick={onStart}>Deal Cards</button>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════
+//  YOU BAR  (bid / took strip at bottom)
+// ════════════════════════════════════════════
+function YouBar({ gs, isActive }: { gs: GameState; isActive: boolean }) {
+  const bid    = gs.bids[HUMAN];
+  const tricks = gs.tricksWon[HUMAN]!;
+  const score  = gs.scores[HUMAN]!;
+  const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
+  return (
+    <div className={`you-bar${isActive ? ' you-bar--active' : ''}`}>
+      <span className="you-bar__score">{score}</span>
+      <span className="you-bar__sep" />
+      <span className="you-bar__stat">bid {bidStr}</span>
+      <span className="you-bar__dim">·</span>
+      <span className="you-bar__took">took {tricks}</span>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════
+//  GAME TABLE
 // ════════════════════════════════════════════
 function RulesOverlay({ onClose }: { onClose: () => void }) {
   return (
@@ -362,9 +403,6 @@ function RulesOverlay({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ════════════════════════════════════════════
-//  GAME TABLE
-// ════════════════════════════════════════════
 function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
   gs: GameState;
   pk: PublicKnowledge;
@@ -393,6 +431,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
       </div>
 
       <div className="table__body">
+        {/* Opponents + trick */}
         <div className="felt">
           <div className="seat seat--north">
             <Badge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
@@ -404,11 +443,9 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
             <Badge seat={1} gs={gs} isActive={gs.turn === 1 && !trickPause} />
           </div>
           <TrickArea gs={gs} trickPause={trickPause} isHumanPlay={isHumanPlay} />
-          <div className="seat seat--south">
-            <Badge seat={HUMAN} gs={gs} isActive={isHumanBid || isHumanPlay} />
-          </div>
         </div>
 
+        {/* Interactive panel: status + bid/hand + your stats at bottom */}
         <div className="panel">
           <div className="status-bar">
             <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
@@ -421,6 +458,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
             legal={legal}
             onPlay={onPlay}
           />
+          <YouBar gs={gs} isActive={isHumanBid || isHumanPlay} />
         </div>
       </div>
     </div>
@@ -581,7 +619,7 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [appState, handlePlay]);
 
-  // ── Render ──────────────────────────────────────
+  // ── Render ─────────────────────────────
   const updateBanner = needRefresh ? (
     <div className="update-banner">
       <span>Update available</span>
@@ -627,7 +665,7 @@ export default function App() {
   return null;
 }
 
-// ── Build hand-summary state ────────────────────────
+// ── Build hand-summary state ──────────────
 function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): AppState {
   const bids   = gs.bids.map(b => b ?? 0);
   const result = scoreHand(bids, gs.tricksWon, gs.bags);
