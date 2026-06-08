@@ -111,8 +111,8 @@ html, body {
 .badge--you { border-color: rgba(232,184,75,0.3); }
 .badge__name    { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; color: var(--text-dim); }
 .badge__score   { font-size: 18px; font-weight: 800; color: var(--gold); line-height: 1.2; }
-.badge__bid-row { font-size: 11px; font-weight: 700; color: var(--text); margin-top: 3px; }
-.badge__won-row { font-size: 11px; font-weight: 600; color: var(--text-dim); margin-top: 1px; }
+.badge__bid-row { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 3px; }
+.badge__won-row { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-top: 1px; }
 
 /* Mini opponent hand chips inside badge */
 .badge__opp-hand {
@@ -234,12 +234,12 @@ html, body {
   gap: 5px;
 }
 .bid-btn {
-  height: 48px;
+  height: 52px;
   border-radius: 6px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 16px; font-weight: 700;
+  font-size: 20px; font-weight: 700;
   cursor: pointer; font-family: inherit;
   transition: background 0.1s, transform 0.08s;
   touch-action: manipulation;
@@ -275,16 +275,16 @@ html, body {
 
 /* Card chip — just the rank */
 .chip {
-  min-width: 40px; height: 40px;
+  min-width: 46px; height: 46px;
   border-radius: var(--radius);
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 15px; font-weight: 700;
+  font-size: 20px; font-weight: 700;
   cursor: default;
   font-family: inherit;
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 0 5px;
+  padding: 0 6px;
   transition: background 0.1s, opacity 0.1s, transform 0.08s;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
