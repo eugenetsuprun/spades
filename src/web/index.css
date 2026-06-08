@@ -65,11 +65,12 @@ html, body {
 .hdr__restart-btn:hover  { color: var(--text); background: var(--surface2); }
 .hdr__restart-btn:active { opacity: 0.6; }
 
-/* Body: felt (top) + panel (bottom) */
+/* Body: felt (left/top) + panel (right/bottom) */
 .table__body {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
 }
+
 
 /* ════════════════════════════════════════
    FELT  (opponents + trick)
@@ -110,8 +111,33 @@ html, body {
 .badge--you { border-color: rgba(232,184,75,0.3); }
 .badge__name    { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; color: var(--text-dim); }
 .badge__score   { font-size: 18px; font-weight: 800; color: var(--gold); line-height: 1.2; }
-.badge__bid-row { font-size: 11px; font-weight: 700; color: var(--text); margin-top: 3px; }
-.badge__won-row { font-size: 11px; font-weight: 600; color: var(--text-dim); margin-top: 1px; }
+.badge__bid-row { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 3px; }
+.badge__won-row { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-top: 1px; }
+
+/* Mini opponent hand chips inside badge */
+.badge__opp-hand {
+  display: flex; flex-direction: column; gap: 2px;
+  margin-top: 5px; text-align: left;
+}
+.badge__opp-row {
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+}
+.badge__opp-glyph {
+  font-size: 11px; width: 12px; flex-shrink: 0; line-height: 1;
+}
+.badge__opp-glyph--red { color: var(--red); }
+.badge__opp-chip {
+  font-size: 9px; font-weight: 700;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  min-width: 15px; height: 15px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 2px;
+  color: var(--text);
+  line-height: 1;
+}
+.badge__opp-chip--red { color: var(--red); }
 
 /* ════════════════════════════════════════
    TRICK AREA
@@ -180,6 +206,7 @@ html, body {
   max-height: 48dvh;
 }
 
+
 /* ── Status bar ── */
 .status-bar {
   flex-shrink: 0;
@@ -207,12 +234,12 @@ html, body {
   gap: 5px;
 }
 .bid-btn {
-  height: 48px;
+  height: 52px;
   border-radius: 6px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 16px; font-weight: 700;
+  font-size: 20px; font-weight: 700;
   cursor: pointer; font-family: inherit;
   transition: background 0.1s, transform 0.08s;
   touch-action: manipulation;
@@ -224,6 +251,7 @@ html, body {
   border-color: rgba(232,184,75,0.28);
   color: var(--gold);
 }
+
 
 /* ── Hand (suit rows) ── */
 .hand-area {
@@ -247,16 +275,16 @@ html, body {
 
 /* Card chip — just the rank */
 .chip {
-  min-width: 40px; height: 40px;
+  min-width: 46px; height: 46px;
   border-radius: var(--radius);
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 15px; font-weight: 700;
+  font-size: 20px; font-weight: 700;
   cursor: default;
   font-family: inherit;
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 0 5px;
+  padding: 0 6px;
   transition: background 0.1s, opacity 0.1s, transform 0.08s;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -370,3 +398,27 @@ html, body {
   box-shadow: 0 4px 18px rgba(79,110,245,0.38);
 }
 .btn--primary:hover { opacity: 0.88; }
+
+/* ════════════════════════════════════════
+   START SCREEN
+════════════════════════════════════════ */
+.start-screen {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 20px; padding: 28px 20px;
+  background: var(--bg);
+}
+.start-screen__logo { font-size: 72px; line-height: 1; filter: drop-shadow(0 4px 20px rgba(79,110,245,0.5)); }
+.start-screen__title { font-size: 24px; font-weight: 800; letter-spacing: 0.03em; text-align: center; }
+.start-screen__subtitle { font-size: 13px; color: var(--text-dim); text-align: center; }
+.start-screen__rules {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  max-width: 300px; width: 100%;
+  font-size: 12px; line-height: 2; color: var(--text-dim);
+  list-style: none;
+}
+.start-screen__rules li::before { content: '· '; color: var(--gold); }
