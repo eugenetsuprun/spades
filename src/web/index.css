@@ -34,6 +34,30 @@ html, body {
 }
 
 /* ════════════════════════════════════════
+   UPDATE BANNER
+════════════════════════════════════════ */
+.update-banner {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  height: 38px;
+  background: #2a3a6e;
+  border-bottom: 1px solid rgba(79,110,245,0.4);
+  font-size: 13px; font-weight: 600;
+  color: #c8d4ff;
+}
+.update-banner__btn {
+  background: #4f6ef5;
+  color: #fff;
+  border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 700;
+  padding: 5px 14px;
+  cursor: pointer; font-family: inherit;
+  touch-action: manipulation;
+}
+.update-banner__btn:active { opacity: 0.75; }
+
+/* ════════════════════════════════════════
    TABLE LAYOUT
 ════════════════════════════════════════ */
 .table {

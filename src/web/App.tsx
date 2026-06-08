@@ -1,4 +1,6 @@
+/// <reference types="vite-plugin-pwa/react" />
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import type { GameState, TrickEntry } from '../engine/state.js';
 import { createInitialState, cloneState, nextSeat, CARDS_PER_HAND, NUM_PLAYERS } from '../engine/state.js';
 import type { Card, Suit } from '../engine/cards.js';
@@ -12,14 +14,14 @@ import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
 import { SearchAgent } from '../ai/agents.js';
 import { Rng } from '../engine/rng.js';
 
-// ── Constants ─────────────────────────────────
+// ── Constants ───────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
 const AI_BID_DELAY  = 380;
 const AI_PLAY_DELAY = 460;
 const TRICK_PAUSE   = 900;
 
-// ── Types ──────────────────────────────────────
+// ── Types ────────────────────────────────────
 interface TrickPause {
   entries: TrickEntry[];
   winner: number;
@@ -36,11 +38,12 @@ interface HandSummaryData {
 }
 
 type AppState =
+  | { tag: 'start' }
   | { tag: 'game'; gs: GameState; pk: PublicKnowledge; trickPause: TrickPause | null }
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
   | { tag: 'game-over'; scores: number[]; placements: number[] };
 
-// ── Helpers ────────────────────────────────────
+// ── Helpers ──────────────────────────────────
 function clonePk(pk: PublicKnowledge): PublicKnowledge {
   return { played: pk.played.slice(), voids: pk.voids.map(v => v.slice()) };
 }
@@ -74,9 +77,9 @@ const AI_AGENTS: (SearchAgent | null)[] = [
 // ── Suit display order: ♠ ♥ ♦ ♣ (spades first = trump first) ──
 const SUIT_ORDER = [3, 2, 1, 0] as const;
 
-// ══════════════════════════════════════════════
-//  TRICK CARD
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  TRICK CARD  (used inside trick area)
+// ════════════════════════════════════════════
 function TrickCard({ card, winner }: { card: Card; winner: boolean }) {
   const suit  = suitOf(card);
   const rank  = RANK_LABELS[rankIxOf(card)]!;
@@ -90,9 +93,9 @@ function TrickCard({ card, winner }: { card: Card; winner: boolean }) {
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  PLAYER BADGE
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: boolean }) {
   const bid    = gs.bids[seat];
   const tricks = gs.tricksWon[seat]!;
@@ -114,9 +117,9 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  TRICK AREA
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 function TrickArea({ gs, trickPause, isHumanPlay }: {
   gs: GameState;
   trickPause: TrickPause | null;
@@ -149,9 +152,9 @@ function TrickArea({ gs, trickPause, isHumanPlay }: {
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  STATUS TEXT
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 function StatusText({ gs, trickPause, isHandDone }: {
   gs: GameState;
   trickPause: TrickPause | null;
@@ -179,9 +182,9 @@ function ThinkingDots() {
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  BID SELECTOR
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
   return (
     <div className="bid-panel">
@@ -201,9 +204,9 @@ function BidSelector({ onBid }: { onBid: (bid: number) => void }) {
   );
 }
 
-// ══════════════════════════════════════════════
-//  HAND  (suit rows)
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  HAND  (suit rows — no fan, no ResizeObserver)
+// ════════════════════════════════════════════
 function Hand({ cards, isPlay, isBid, legal, onPlay }: {
   cards: Card[];
   isPlay: boolean;
@@ -251,9 +254,9 @@ function Hand({ cards, isPlay, isBid, legal, onPlay }: {
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  HAND SUMMARY OVERLAY
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 function HandSummaryOverlay({ data, onContinue }: { data: HandSummaryData; onContinue: () => void }) {
   return (
     <div className="overlay">
@@ -294,9 +297,9 @@ function HandSummaryOverlay({ data, onContinue }: { data: HandSummaryData; onCon
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  GAME OVER OVERLAY
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 function GameOverOverlay({ scores, placements, onNewGame }: {
   scores: number[];
   placements: number[];
@@ -335,9 +338,31 @@ function GameOverOverlay({ scores, placements, onNewGame }: {
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  START SCREEN
+// ════════════════════════════════════════════
+function StartScreen({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="start-screen">
+      <div className="start-screen__logo">♠</div>
+      <div style={{ textAlign: 'center' }}>
+        <h1 className="start-screen__title">Solo Cutthroat Spades</h1>
+        <p className="start-screen__subtitle">4-player free-for-all · First to 40</p>
+      </div>
+      <ul className="start-screen__rules">
+        <li>Bid your tricks — make your bid or get set</li>
+        <li>Bid NIL to score +50 by taking zero tricks</li>
+        <li>3 over-tricks (bags) costs 30 pts</li>
+        <li>Spades always trump</li>
+      </ul>
+      <button className="btn btn--primary" onClick={onStart}>Deal Cards</button>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════
 //  GAME TABLE
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
   gs: GameState;
   pk: PublicKnowledge;
@@ -363,6 +388,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
       </div>
 
       <div className="table__body">
+        {/* Left/top: felt with opponents and trick */}
         <div className="felt">
           <div className="seat seat--north">
             <Badge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
@@ -379,6 +405,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
           </div>
         </div>
 
+        {/* Right/bottom: status + optional bid + hand */}
         <div className="panel">
           <div className="status-bar">
             <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
@@ -397,10 +424,12 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
   );
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  ROOT APP
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════
 export default function App() {
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+
   const rngRef = useRef<Rng | null>(null);
   const [appState, setAppState] = useState<AppState>(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
@@ -549,11 +578,23 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [appState, handlePlay]);
 
-  // ── Render ─────────────────────────────────
+  // ── Render ──────────────────────────────────────
+const updateBanner = needRefresh ? (
+    <div className="update-banner">
+      <span>Update available</span>
+      <button className="update-banner__btn" onClick={() => updateServiceWorker(true)}>
+        Reload
+      </button>
+    </div>
+  ) : null;
+
   if (appState.tag === 'game') {
     const { gs, pk, trickPause } = appState;
     return (
-      <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} />
+      <>
+        {updateBanner}
+        <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} />
+      </>
     );
   }
 
@@ -561,6 +602,7 @@ export default function App() {
     const { data, nextGs, nextPk } = appState;
     return (
       <>
+        {updateBanner}
         <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} onRestart={startGame} />
         <HandSummaryOverlay data={data} onContinue={handleContinue} />
       </>
@@ -570,16 +612,19 @@ export default function App() {
   if (appState.tag === 'game-over') {
     const { scores, placements } = appState;
     return (
-      <div style={{ flex: 1, background: 'var(--bg)' }}>
-        <GameOverOverlay scores={scores} placements={placements} onNewGame={startGame} />
-      </div>
+      <>
+        {updateBanner}
+        <div style={{ flex: 1, background: 'var(--bg)' }}>
+          <GameOverOverlay scores={scores} placements={placements} onNewGame={startGame} />
+        </div>
+      </>
     );
   }
 
   return null;
 }
 
-// ── Build hand-summary state ──────────────────
+// ── Build hand-summary state ────────────────────────
 function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): AppState {
   const bids   = gs.bids.map(b => b ?? 0);
   const result = scoreHand(bids, gs.tricksWon, gs.bags);
