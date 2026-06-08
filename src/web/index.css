@@ -133,7 +133,6 @@ html, body {
   box-shadow: 0 0 12px rgba(255,255,255,0.07);
 }
 .badge--you { border-color: rgba(232,184,75,0.3); }
-.badge__name    { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; color: var(--text-dim); }
 .badge__score   { font-size: 18px; font-weight: 800; color: var(--gold); line-height: 1.2; }
 .badge__bid-row { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 3px; }
 .badge__won-row { font-size: 14px; font-weight: 600; color: rgba(224,224,240,0.6); margin-top: 1px; }
@@ -199,8 +198,8 @@ html, body {
   line-height: 1;
   gap: 1px;
 }
-.tcard__rank { font-size: 17px; font-weight: 800; font-family: 'Georgia', serif; }
-.tcard__suit { font-size: 14px; }
+.tcard__rank { font-size: 21px; font-weight: 800; font-family: 'Georgia', serif; }
+.tcard__suit { font-size: 15px; }
 .tcard--red .tcard__rank, .tcard--red .tcard__suit { color: #c0102a; }
 .tcard--win { outline: 2px solid var(--gold); outline-offset: 2px; }
 .tcard--empty {
@@ -374,6 +373,16 @@ html, body {
   font-size: 18px; font-weight: 800;
   color: var(--gold); text-align: center; margin-bottom: 14px;
 }
+
+/* Rules list */
+.rules-list {
+  list-style: none;
+  font-size: 14px; line-height: 1.9;
+  color: var(--text);
+  margin-bottom: 12px;
+  padding: 0;
+}
+.rules-list li::before { content: '· '; color: var(--gold); font-weight: 700; }
 
 /* Score table */
 .score-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }

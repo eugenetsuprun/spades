@@ -109,10 +109,9 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
       isActive ? 'badge--active' : '',
       isHuman ? 'badge--you' : '',
     ].filter(Boolean).join(' ')}>
-      <div className="badge__name">{SEAT_NAMES[seat]}</div>
       <div className="badge__score">{score}</div>
       <div className="badge__bid-row">bid {bidStr}</div>
-      <div className="badge__won-row">{tricks} won</div>
+      <div className="badge__won-row">took {tricks}</div>
     </div>
   );
 }
@@ -144,8 +143,8 @@ function TrickArea({ gs, trickPause, isHumanPlay }: {
           );
         })}
         <div className="trick-meta">
-          {gs.completedTricks}/13<br />
-          {gs.spadesBroken ? '♠ led' : '♠ not led'}
+          {gs.completedTricks}/13
+          {gs.spadesBroken && <><br />♠ led</>}
         </div>
       </div>
     </div>
@@ -267,7 +266,7 @@ function HandSummaryOverlay({ data, onContinue }: { data: HandSummaryData; onCon
             <tr>
               <th>Player</th>
               <th className="col-num">Bid</th>
-              <th className="col-num">Won</th>
+              <th className="col-num">Took</th>
               <th className="col-num">+/−</th>
               <th className="col-num">Total</th>
             </tr>
@@ -339,23 +338,26 @@ function GameOverOverlay({ scores, placements, onNewGame }: {
 }
 
 // ════════════════════════════════════════════
-//  START SCREEN
+//  RULES OVERLAY
 // ════════════════════════════════════════════
-function StartScreen({ onStart }: { onStart: () => void }) {
+function RulesOverlay({ onClose }: { onClose: () => void }) {
   return (
-    <div className="start-screen">
-      <div className="start-screen__logo">♠</div>
-      <div style={{ textAlign: 'center' }}>
-        <h1 className="start-screen__title">Solo Cutthroat Spades</h1>
-        <p className="start-screen__subtitle">4-player free-for-all · First to 40</p>
+    <div className="overlay" onClick={onClose}>
+      <div className="overlay-panel" onClick={e => e.stopPropagation()}>
+        <h2>How to Play</h2>
+        <ul className="rules-list">
+          <li>Each player bids how many tricks they'll take.</li>
+          <li>Make your bid exactly — extra tricks are bags.</li>
+          <li>Every 3 bags costs you 30 points.</li>
+          <li>Bid NIL to score +50 by taking zero tricks.</li>
+          <li>Spades are always trump and can't lead until broken.</li>
+          <li>Highest card of the led suit wins unless trumped.</li>
+          <li>First to 40 points wins.</li>
+        </ul>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+          <button className="btn btn--primary" onClick={onClose}>Got it</button>
+        </div>
       </div>
-      <ul className="start-screen__rules">
-        <li>Bid your tricks — make your bid or get set</li>
-        <li>Bid NIL to score +50 by taking zero tricks</li>
-        <li>3 over-tricks (bags) costs 30 pts</li>
-        <li>Spades always trump</li>
-      </ul>
-      <button className="btn btn--primary" onClick={onStart}>Deal Cards</button>
     </div>
   );
 }
@@ -371,6 +373,7 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
   onPlay: (card: Card) => void;
   onRestart: () => void;
 }) {
+  const [showRules, setShowRules] = useState(false);
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
   const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
   const legal       = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
@@ -378,17 +381,18 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
 
   return (
     <div className="table">
+      {showRules && <RulesOverlay onClose={() => setShowRules(false)} />}
       <div className="table__header">
-        <span className="hdr__title">♠ Spades</span>
+        <span className="hdr__title">♠ Solo Spades</span>
         <span className="hdr__hand">Hand {gs.handNumber + 1} · First to 40</span>
         <div className="hdr__right">
           <span className="hdr__score">You: {gs.scores[HUMAN]}</span>
+          <button className="hdr__restart-btn" onClick={() => setShowRules(true)} aria-label="Rules">?</button>
           <button className="hdr__restart-btn" onClick={onRestart} aria-label="New game">↺</button>
         </div>
       </div>
 
       <div className="table__body">
-        {/* Left/top: felt with opponents and trick */}
         <div className="felt">
           <div className="seat seat--north">
             <Badge seat={2} gs={gs} isActive={gs.turn === 2 && !trickPause} />
@@ -405,7 +409,6 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
           </div>
         </div>
 
-        {/* Right/bottom: status + optional bid + hand */}
         <div className="panel">
           <div className="status-bar">
             <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
@@ -579,7 +582,7 @@ export default function App() {
   }, [appState, handlePlay]);
 
   // ── Render ──────────────────────────────────────
-const updateBanner = needRefresh ? (
+  const updateBanner = needRefresh ? (
     <div className="update-banner">
       <span>Update available</span>
       <button className="update-banner__btn" onClick={() => updateServiceWorker(true)}>
