@@ -132,6 +132,7 @@ html, body {
 }
 .badge--you { border-color: rgba(232,184,75,0.3); }
 .badge__score   { font-size: 20px; font-weight: 800; color: var(--gold); line-height: 1.2; }
+.badge__pts     { font-size: 11px; font-weight: 600; color: rgba(232,184,75,0.7); margin-left: 2px; }
 .badge__bid-row { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 3px; }
 .badge__won-row { font-size: 16px; font-weight: 600; color: rgba(224,224,240,0.6); margin-top: 1px; }
 
@@ -146,6 +147,7 @@ html, body {
 }
 .you-bar--active { background: var(--surface2); border-top-color: var(--border-hi); }
 .you-bar__score { font-size: 22px; font-weight: 800; color: var(--gold); min-width: 28px; }
+.you-bar__pts   { font-size: 12px; font-weight: 600; color: rgba(232,184,75,0.7); }
 .you-bar__sep   { flex: 1; }
 .you-bar__stat  { font-size: 18px; font-weight: 700; color: var(--text); }
 .you-bar__dim   { color: var(--text-dim); font-size: 16px; }
@@ -241,7 +243,6 @@ html, body {
   display: flex; flex-direction: column;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  max-height: 48dvh;
 }
 
 
@@ -293,10 +294,9 @@ html, body {
 
 /* ── Hand (suit rows) ── */
 .hand-area {
-  flex: 1; min-height: 0;
+  flex-shrink: 0;
   padding: 10px 12px 12px;
   display: flex; flex-direction: column; gap: 6px;
-  overflow-y: auto;
 }
 
 .suit-row {
@@ -446,6 +446,55 @@ html, body {
   box-shadow: 0 4px 18px rgba(79,110,245,0.38);
 }
 .btn--primary:hover { opacity: 0.88; }
+
+/* ════════════════════════════════════════
+   SETTINGS OVERLAY
+════════════════════════════════════════ */
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.setting-row:last-of-type { border-bottom: none; }
+.setting-label { font-size: 15px; font-weight: 600; color: var(--text); }
+
+/* Segmented control */
+.seg-ctrl {
+  display: flex; gap: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.seg-btn {
+  flex: 1;
+  padding: 7px 14px;
+  background: none; border: none;
+  color: var(--text-dim); font-size: 14px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  touch-action: manipulation;
+}
+.seg-btn:not(:last-child) { border-right: 1px solid var(--border); }
+.seg-btn--active { background: var(--surface3); color: var(--text); }
+.seg-btn:active  { opacity: 0.7; }
+
+/* Stepper */
+.stepper {
+  display: flex; align-items: center; gap: 8px;
+}
+.stepper__btn {
+  width: 36px; height: 36px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text);
+  font-size: 20px; font-weight: 700; line-height: 1;
+  cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: manipulation;
+}
+.stepper__btn:active { opacity: 0.6; transform: scale(0.9); }
+.stepper__val {
+  font-size: 15px; font-weight: 700; color: var(--gold);
+  min-width: 70px; text-align: center;
+}
 
 /* ════════════════════════════════════════
    START SCREEN

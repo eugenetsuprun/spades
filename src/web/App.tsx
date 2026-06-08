@@ -7,7 +7,7 @@ import type { Card, Suit } from '../engine/cards.js';
 import { fullDeck, RANK_LABELS, SUIT_GLYPHS, suitOf, rankIxOf } from '../engine/cards.js';
 import {
   applyBid, applyPlay, legalMoves as getLegalMoves,
-  scoreHand, isGameOver, placementRewards,
+  scoreHand, placementRewards,
 } from '../engine/rules.js';
 import type { PublicKnowledge } from '../ai/infoset.js';
 import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
@@ -23,9 +23,26 @@ const BUILD_LABEL = (() => {
 // ── Constants ─────────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
-const AI_BID_DELAY  = 380;
-const AI_PLAY_DELAY = 460;
-const TRICK_PAUSE   = 900;
+
+// ── Settings ───────────────────────────────────
+interface Settings {
+  speed: 'slow' | 'medium' | 'fast';
+  winScore: number;
+  loseScore: number;
+}
+const DEFAULT_SETTINGS: Settings = { speed: 'medium', winScore: 40, loseScore: -60 };
+const SPEED_CONFIG = {
+  slow:   { bid: 900,  play: 1000, trick: 1600 },
+  medium: { bid: 380,  play: 460,  trick: 900  },
+  fast:   { bid: 150,  play: 180,  trick: 380  },
+};
+function loadSettings(): Settings {
+  try { const s = localStorage.getItem('spades-settings'); if (s) return { ...DEFAULT_SETTINGS, ...JSON.parse(s) }; } catch {}
+  return { ...DEFAULT_SETTINGS };
+}
+function saveSettings(s: Settings) {
+  try { localStorage.setItem('spades-settings', JSON.stringify(s)); } catch {}
+}
 
 // ── Types ──────────────────────────────────────
 interface TrickPause {
@@ -115,7 +132,7 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
       isActive ? 'badge--active' : '',
       isHuman ? 'badge--you' : '',
     ].filter(Boolean).join(' ')}>
-      <div className="badge__score">{score}</div>
+      <div className="badge__score">{score}<span className="badge__pts">pts</span></div>
       <div className="badge__bid-row">bid {bidStr}</div>
       <div className="badge__won-row">took {tricks}</div>
     </div>
@@ -148,9 +165,6 @@ function TrickArea({ gs, trickPause, isHumanPlay }: {
             </div>
           );
         })}
-        <div className="trick-meta">
-          {gs.completedTricks}/13
-        </div>
       </div>
     </div>
   );
@@ -374,12 +388,67 @@ function YouBar({ gs, isActive }: { gs: GameState; isActive: boolean }) {
   const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
   return (
     <div className={`you-bar${isActive ? ' you-bar--active' : ''}`}>
-      <span className="you-bar__score">{score}</span>
+      <span className="you-bar__score">{score}<span className="you-bar__pts"> pts</span></span>
       <span className="you-bar__sep" />
       <span className="you-bar__stat">bid {bidStr}</span>
       <span className="you-bar__dim">·</span>
       <span className="you-bar__took">took {tricks}</span>
       {BUILD_LABEL && <span className="you-bar__time">{BUILD_LABEL}</span>}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+//  SETTINGS OVERLAY
+// ══════════════════════════════════════════════
+function SettingsOverlay({ settings, onChange, onClose }: {
+  settings: Settings;
+  onChange: (s: Settings) => void;
+  onClose: () => void;
+}) {
+  const speeds: Settings['speed'][] = ['slow', 'medium', 'fast'];
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="overlay-panel" onClick={e => e.stopPropagation()}>
+        <h2>Settings</h2>
+
+        <div className="setting-row">
+          <div className="setting-label">Speed</div>
+          <div className="seg-ctrl">
+            {speeds.map(s => (
+              <button
+                key={s}
+                className={`seg-btn${settings.speed === s ? ' seg-btn--active' : ''}`}
+                onClick={() => onChange({ ...settings, speed: s })}
+              >
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-label">Win at</div>
+          <div className="stepper">
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, winScore: Math.max(20, settings.winScore - 10) })}>−</button>
+            <span className="stepper__val">{settings.winScore} pts</span>
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, winScore: Math.min(500, settings.winScore + 10) })}>+</button>
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-label">Lose at</div>
+          <div className="stepper">
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, loseScore: Math.max(-500, settings.loseScore - 10) })}>−</button>
+            <span className="stepper__val">{settings.loseScore} pts</span>
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, loseScore: Math.min(-10, settings.loseScore + 10) })}>+</button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+          <button className="btn btn--primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -409,15 +478,18 @@ function RulesOverlay({ onClose }: { onClose: () => void }) {
   );
 }
 
-function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
+function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart, settings, onSettingsChange }: {
   gs: GameState;
   pk: PublicKnowledge;
   trickPause: TrickPause | null;
   onBid: (bid: number) => void;
   onPlay: (card: Card) => void;
   onRestart: () => void;
+  settings: Settings;
+  onSettingsChange: (s: Settings) => void;
 }) {
   const [showRules, setShowRules] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
   const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
   const legal       = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
@@ -425,12 +497,14 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
 
   return (
     <div className="table">
-      {showRules && <RulesOverlay onClose={() => setShowRules(false)} />}
+      {showRules    && <RulesOverlay onClose={() => setShowRules(false)} />}
+      {showSettings && <SettingsOverlay settings={settings} onChange={s => { onSettingsChange(s); saveSettings(s); }} onClose={() => setShowSettings(false)} />}
       <div className="table__header">
         <span className="hdr__title">♠ Solo Spades</span>
-        <span className="hdr__hand">Hand {gs.handNumber + 1} · First to 40</span>
+        <span className="hdr__hand">Hand {gs.handNumber + 1} · {settings.winScore} pts</span>
         <div className="hdr__right">
           <span className="hdr__score">You: {gs.scores[HUMAN]}</span>
+          <button className="hdr__restart-btn" onClick={() => setShowSettings(true)} aria-label="Settings">⚙</button>
           <button className="hdr__restart-btn" onClick={() => setShowRules(true)} aria-label="Rules">?</button>
           <button className="hdr__restart-btn" onClick={onRestart} aria-label="New game">↺</button>
         </div>
@@ -476,6 +550,10 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
 // ══════════════════════════════════════════════
 export default function App() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
 
   const rngRef = useRef<Rng | null>(null);
   const [appState, setAppState] = useState<AppState>(() => {
@@ -547,21 +625,22 @@ export default function App() {
       const id = window.setTimeout(() => {
         setAppState(prev => {
           if (prev.tag !== 'game' || prev.trickPause === null) return prev;
-          if (prev.gs.phase === 'handDone') return buildHandSummaryState(prev.gs, prev.pk, rngRef.current!);
+          if (prev.gs.phase === 'handDone') return buildHandSummaryState(prev.gs, prev.pk, rngRef.current!, settingsRef.current);
           return { ...prev, trickPause: null };
         });
-      }, TRICK_PAUSE);
+      }, SPEED_CONFIG[settingsRef.current.speed].trick);
       return () => window.clearTimeout(id);
     }
 
     if (gs.phase === 'handDone') {
-      setAppState(buildHandSummaryState(gs, pk, rngRef.current!));
+      setAppState(buildHandSummaryState(gs, pk, rngRef.current!, settingsRef.current));
       return;
     }
 
     if (gs.turn === HUMAN) return;
 
-    const delay = gs.phase === 'bidding' ? AI_BID_DELAY : AI_PLAY_DELAY;
+    const { speed } = settingsRef.current;
+    const delay = gs.phase === 'bidding' ? SPEED_CONFIG[speed].bid : SPEED_CONFIG[speed].play;
     const id = window.setTimeout(() => {
       setAppState(prev => {
         if (prev.tag !== 'game' || prev.trickPause !== null) return prev;
@@ -640,7 +719,7 @@ export default function App() {
     return (
       <>
         {updateBanner}
-        <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} />
+        <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} settings={settings} onSettingsChange={setSettings} />
       </>
     );
   }
@@ -650,7 +729,7 @@ export default function App() {
     return (
       <>
         {updateBanner}
-        <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} onRestart={startGame} />
+        <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} onRestart={startGame} settings={settings} onSettingsChange={setSettings} />
         <HandSummaryOverlay data={data} onContinue={handleContinue} />
       </>
     );
@@ -672,7 +751,7 @@ export default function App() {
 }
 
 // ── Build hand-summary state ──────────────────
-function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): AppState {
+function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng, settings: Settings): AppState {
   const bids   = gs.bids.map(b => b ?? 0);
   const result = scoreHand(bids, gs.tricksWon, gs.bags);
 
@@ -686,7 +765,7 @@ function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): Ap
     bagsAfter:  result.bagsAfter.slice(),
   };
 
-  if (isGameOver(scoresAfter)) {
+  if (scoresAfter.some(s => s >= settings.winScore || s <= settings.loseScore)) {
     return { tag: 'game-over', scores: scoresAfter, placements: placementRewards(scoresAfter) };
   }
 
