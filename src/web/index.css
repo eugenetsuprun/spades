@@ -621,3 +621,173 @@ html, body {
   list-style: none;
 }
 .start-screen__rules li::before { content: '\B7 '; color: var(--gold); }
+
+/* ════════════════════════════════════════
+   DESKTOP LAYOUT
+   Mobile remains the default; this only applies to roomy screens.
+════════════════════════════════════════ */
+@media (min-width: 900px) and (min-height: 620px) {
+  #root {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #090910;
+  }
+
+  .update-banner {
+    width: min(1180px, calc(100vw - 48px));
+  }
+
+  .table {
+    width: min(1180px, calc(100vw - 48px));
+    height: min(780px, calc(100dvh - 48px));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 28px 80px rgba(0,0,0,0.48);
+  }
+
+  .table__header {
+    height: 54px;
+    padding: 0 22px;
+    font-size: 14px;
+  }
+  .hdr__title { font-size: 16px; }
+  .hdr__hand  { font-size: 12px; }
+  .hdr__right { gap: 12px; }
+  .hdr__restart-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 22px;
+  }
+
+  .table__body {
+    flex-direction: row;
+  }
+
+  .felt {
+    flex: 1 1 auto;
+    grid-template-areas:
+      ".    north ."
+      "west trick east";
+    grid-template-columns: 150px minmax(330px, 1fr) 150px;
+    grid-template-rows: 132px 1fr;
+    gap: 18px;
+    padding: 24px;
+  }
+  .seat--north { width: 150px; align-self: end; }
+  .seat--west,
+  .seat--east {
+    width: 150px;
+    align-self: center;
+    padding-top: 0;
+  }
+
+  .badge {
+    padding: 11px 12px;
+    border-radius: 8px;
+  }
+  .badge--bidding {
+    min-height: 76px;
+    padding: 12px 10px;
+  }
+  .badge__name { font-size: 12px; }
+  .badge__bid-status { font-size: 18px; }
+  .badge__score { font-size: 28px; }
+  .badge__bid-row,
+  .badge__won-row { font-size: 18px; }
+
+  .trick-inner {
+    width: min(420px, 38vw);
+    height: min(330px, 44dvh);
+  }
+  .tcard,
+  .tcard--empty,
+  .tcard--prompt {
+    width: 72px;
+    height: 98px;
+    border-radius: 8px;
+  }
+  .tcard__rank { font-size: 40px; }
+  .tcard__suit { font-size: 26px; }
+  .trick-meta { font-size: 14px; }
+
+  .panel {
+    flex: 0 0 420px;
+    max-height: none;
+    border-top: none;
+    border-left: 1px solid var(--border);
+  }
+  .panel--bidding { flex-basis: 420px; }
+  .status-bar {
+    height: 48px;
+    padding: 0 18px;
+    font-size: 15px;
+  }
+
+  .bid-panel {
+    padding: 12px 16px 14px;
+  }
+  .bid-label {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+  .bid-grid { gap: 7px; }
+  .bid-btn {
+    height: 52px;
+    font-size: 20px;
+  }
+
+  .hand-area {
+    padding: 16px;
+    gap: 10px;
+  }
+  .hand-area--bid {
+    padding: 12px 16px 14px;
+    gap: 7px;
+  }
+  .suit-row { gap: 7px; }
+  .suit-label {
+    width: 26px;
+    font-size: 22px;
+  }
+  .chip {
+    min-width: 56px;
+    height: 54px;
+    font-size: 24px;
+  }
+  .hand-area--bid .suit-row { gap: 6px; }
+  .hand-area--bid .suit-label {
+    width: 24px;
+    font-size: 19px;
+  }
+  .hand-area--bid .chip {
+    min-width: 48px;
+    height: 44px;
+    font-size: 20px;
+  }
+
+  .you-bar {
+    height: 58px;
+    padding: 0 18px;
+  }
+  .you-bar__score { font-size: 28px; }
+  .you-bar__stat,
+  .you-bar__took { font-size: 20px; }
+  .you-bar__time { font-size: 10px; }
+
+  .overlay-panel {
+    max-width: 420px;
+    border-radius: 14px;
+  }
+
+  .start-screen {
+    width: min(520px, calc(100vw - 48px));
+    height: min(620px, calc(100dvh - 48px));
+    flex: 0 0 auto;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 28px 80px rgba(0,0,0,0.48);
+  }
+}
