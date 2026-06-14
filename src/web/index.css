@@ -267,6 +267,9 @@ html, body {
   border-top: 1px solid var(--border);
   max-height: 48dvh;
 }
+.panel--bidding {
+  max-height: none;
+}
 
 
 /* ── Status bar ── */
@@ -283,25 +286,25 @@ html, body {
 /* ── Bid selector ── */
 .bid-panel {
   flex-shrink: 0;
-  padding: 8px 12px 6px;
+  padding: 6px 12px 5px;
   border-bottom: 1px solid var(--border);
 }
 .bid-label {
-  font-size: 12px; font-weight: 700; letter-spacing: 0.05em;
-  color: rgba(224,224,240,0.55); margin-bottom: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  color: rgba(224,224,240,0.55); margin-bottom: 4px;
 }
 .bid-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
+  gap: 4px;
 }
 .bid-btn {
-  height: 52px;
+  height: 38px;
   border-radius: 6px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 20px; font-weight: 700;
+  font-size: 17px; font-weight: 700;
   cursor: pointer; font-family: inherit;
   transition: background 0.1s, transform 0.08s;
   touch-action: manipulation;
@@ -362,6 +365,36 @@ html, body {
 
 /* All chips dimmed during bidding */
 .hand-area--bid .chip { opacity: 0.65; pointer-events: none; }
+.hand-area--bid {
+  flex: 0 0 auto;
+  padding: 7px 12px 8px;
+  gap: 4px;
+  overflow: visible;
+}
+.hand-area--bid .suit-row { gap: 4px; }
+.hand-area--bid .suit-label {
+  font-size: 15px;
+  width: 18px;
+}
+.hand-area--bid .chip {
+  min-width: 34px;
+  height: 32px;
+  font-size: 17px;
+  padding: 0 4px;
+}
+
+@media (max-height: 680px) {
+  .status-bar { height: 32px; }
+  .bid-panel { padding-top: 5px; padding-bottom: 4px; }
+  .bid-btn { height: 34px; font-size: 16px; }
+  .hand-area--bid { padding-top: 6px; padding-bottom: 7px; gap: 3px; }
+  .hand-area--bid .chip {
+    min-width: 31px;
+    height: 29px;
+    font-size: 15px;
+  }
+  .you-bar { height: 42px; }
+}
 
 /* ── Thinking dots ── */
 .thinking-dots {

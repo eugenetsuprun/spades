@@ -473,7 +473,7 @@ function GameOverOverlay({ scores, humanRank, forfeited, medalLedger, onNewGame 
         </p>
         <div className="medal-ledger">
           <div className="medal-ledger__form">
-            Medal form <strong>{formatMedalForm(medalLedger.form)}</strong>
+            Match record <strong>{formatMedalForm(medalLedger.form)}</strong>
           </div>
           <div className="medal-ledger__counts">
             <span>🥇 {medalLedger.gold}</span>
@@ -610,7 +610,7 @@ function SettingsOverlay({ settings, medalLedger, onChange, onResetMedalLedger, 
 
         <div className="setting-row setting-row--stack">
           <div>
-            <div className="setting-label">Medal form</div>
+            <div className="setting-label">Match record</div>
             <div className="settings-medals">
               <span>{formatMedalForm(medalLedger.form)}</span>
               <span>🥇 {medalLedger.gold}</span>
@@ -671,6 +671,7 @@ function GameTable({ gs, pk, trickPause, settings, medalLedger, onSettingsChange
   const [showSettings, setShowSettings] = useState(false);
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
   const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
+  const isBidding   = gs.phase === 'bidding';
   const legal       = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
   const isHandDone  = gs.phase === 'handDone';
 
@@ -690,7 +691,7 @@ function GameTable({ gs, pk, trickPause, settings, medalLedger, onSettingsChange
         <span className="hdr__title">♠ Solo Spades</span>
         <span className="hdr__hand">Hand {gs.handNumber + 1} · {settings.winScore} pts</span>
         <div className="hdr__right">
-          <span className="hdr__score">Form {formatMedalForm(medalLedger.form)}</span>
+          <span className="hdr__score">Record {formatMedalForm(medalLedger.form)}</span>
           <button className="hdr__restart-btn" onClick={() => setShowSettings(true)} aria-label="Settings" title="Settings">⚙</button>
           <button className="hdr__restart-btn" onClick={() => setShowRules(true)} aria-label="Rules">?</button>
           <button className="hdr__restart-btn" onClick={onForfeit} aria-label="Forfeit game" title="Forfeit game">⚐</button>
@@ -713,7 +714,7 @@ function GameTable({ gs, pk, trickPause, settings, medalLedger, onSettingsChange
         </div>
 
         {/* Interactive panel: status + bid/hand + your stats at bottom */}
-        <div className="panel">
+        <div className={`panel${isBidding ? ' panel--bidding' : ''}`}>
           <div className="status-bar">
             <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
           </div>
