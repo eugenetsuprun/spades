@@ -7,7 +7,7 @@ import type { Card, Suit } from '../engine/cards.js';
 import { fullDeck, RANK_LABELS, SUIT_GLYPHS, suitOf, rankIxOf } from '../engine/cards.js';
 import {
   applyBid, applyPlay, legalMoves as getLegalMoves,
-  scoreHand, isGameOver, placementRewards,
+  scoreHand,
 } from '../engine/rules.js';
 import type { PublicKnowledge } from '../ai/infoset.js';
 import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
@@ -23,9 +23,33 @@ const BUILD_LABEL = (() => {
 // ── Constants ─────────────────────────────
 const HUMAN = 0;
 const SEAT_NAMES = ['You', 'East', 'North', 'West'];
-const AI_BID_DELAY  = 380;
-const AI_PLAY_DELAY = 460;
-const TRICK_PAUSE   = 900;
+
+// ── Settings ────────────────────────────
+interface Settings {
+  speed: 'slow' | 'medium' | 'fast';
+  winScore: number;
+  loseScore: number;
+  haptics: 'off' | 'normal' | 'strong';
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  speed: 'medium',
+  winScore: 40,
+  loseScore: -60,
+  haptics: 'strong',
+};
+
+const SPEED_CONFIG = {
+  slow:   { bid: 900, play: 1000, trick: 1600 },
+  medium: { bid: 380, play: 460,  trick: 900  },
+  fast:   { bid: 150, play: 180,  trick: 380  },
+} as const;
+
+const HAPTIC_PATTERNS: Record<Settings['haptics'], number[]> = {
+  off: [],
+  normal: [100],
+  strong: [130, 45, 130],
+};
 
 // ── Types ──────────────────────────────
 interface TrickPause {
@@ -43,15 +67,113 @@ interface HandSummaryData {
   bagsAfter: number[];
 }
 
+interface MedalLedger {
+  gold: number;
+  silver: number;
+  bronze: number;
+  fourth: number;
+  form: number;
+}
+
 type AppState =
   | { tag: 'start' }
   | { tag: 'game'; gs: GameState; pk: PublicKnowledge; trickPause: TrickPause | null }
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
-  | { tag: 'game-over'; scores: number[]; placements: number[] };
+  | { tag: 'game-over'; scores: number[]; humanRank: number; forfeited: boolean; counted: boolean };
 
 // ── Helpers ────────────────────────────
+const MEDAL_LEDGER_KEY = 'solo-spades-medal-ledger-v1';
+const EMPTY_MEDAL_LEDGER: MedalLedger = { gold: 0, silver: 0, bronze: 0, fourth: 0, form: 0 };
+const SETTINGS_KEY = 'spades-settings';
+
 function clonePk(pk: PublicKnowledge): PublicKnowledge {
   return { played: pk.played.slice(), voids: pk.voids.map(v => v.slice()) };
+}
+
+function readSettings(): Settings {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } as Settings;
+    return {
+      speed: parsed.speed in SPEED_CONFIG ? parsed.speed : DEFAULT_SETTINGS.speed,
+      winScore: Number.isFinite(parsed.winScore) ? parsed.winScore : DEFAULT_SETTINGS.winScore,
+      loseScore: Number.isFinite(parsed.loseScore) ? parsed.loseScore : DEFAULT_SETTINGS.loseScore,
+      haptics: parsed.haptics in HAPTIC_PATTERNS ? parsed.haptics : DEFAULT_SETTINGS.haptics,
+    };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function writeSettings(settings: Settings): void {
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function vibrateTurn(haptics: Settings['haptics']): void {
+  const pattern = HAPTIC_PATTERNS[haptics] ?? [];
+  if (pattern.length > 0) navigator.vibrate?.(pattern);
+}
+
+function readMedalLedger(): MedalLedger {
+  try {
+    const raw = window.localStorage.getItem(MEDAL_LEDGER_KEY);
+    if (!raw) return EMPTY_MEDAL_LEDGER;
+    const parsed = JSON.parse(raw) as Partial<MedalLedger>;
+    return {
+      gold: Number(parsed.gold) || 0,
+      silver: Number(parsed.silver) || 0,
+      bronze: Number(parsed.bronze) || 0,
+      fourth: Number(parsed.fourth) || 0,
+      form: Number(parsed.form) || 0,
+    };
+  } catch {
+    return EMPTY_MEDAL_LEDGER;
+  }
+}
+
+function writeMedalLedger(ledger: MedalLedger): void {
+  window.localStorage.setItem(MEDAL_LEDGER_KEY, JSON.stringify(ledger));
+}
+
+function rankSeats(scores: number[], forfeited = false): number[] {
+  const order = [0, 1, 2, 3].slice().sort((a, b) => {
+    const scoreDelta = scores[b]! - scores[a]!;
+    return scoreDelta !== 0 ? scoreDelta : a - b;
+  });
+  return forfeited ? order.filter(seat => seat !== HUMAN).concat(HUMAN) : order;
+}
+
+function applyMedalResult(ledger: MedalLedger, humanRank: number): MedalLedger {
+  const next = { ...ledger };
+  if (humanRank === 0) {
+    next.gold += 1;
+    next.form += 1;
+  } else if (humanRank === 1) {
+    next.silver += 1;
+  } else if (humanRank === 2) {
+    next.bronze += 1;
+    next.form -= 0.5;
+  } else {
+    next.fourth += 1;
+    next.form -= 0.5;
+  }
+  return next;
+}
+
+function formatMedalForm(value: number): string {
+  const label = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return value > 0 ? `+${label}` : label;
+}
+
+function buildGameOverState(scores: number[], forfeited = false): AppState {
+  return {
+    tag: 'game-over',
+    scores,
+    humanRank: rankSeats(scores, forfeited).indexOf(HUMAN),
+    forfeited,
+    counted: false,
+  };
 }
 
 function dealIntoState(gs: GameState, rng: Rng): void {
@@ -108,16 +230,30 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
   const score  = gs.scores[seat]!;
   const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
   const isHuman = seat === HUMAN;
+  const isBidding = gs.phase === 'bidding';
 
   return (
     <div className={[
       'badge',
       isActive ? 'badge--active' : '',
       isHuman ? 'badge--you' : '',
+      isBidding ? 'badge--bidding' : '',
+      isBidding && bid !== null ? 'badge--bid-made' : '',
     ].filter(Boolean).join(' ')}>
-      <div className="badge__score">{score}</div>
-      <div className="badge__bid-row">bid {bidStr}</div>
-      <div className="badge__won-row">took {tricks}</div>
+      {isBidding ? (
+        <>
+          <div className="badge__name">{SEAT_NAMES[seat]}</div>
+          <div className={`badge__bid-status${bid === null ? ' badge__bid-status--waiting' : ''}`}>
+            {bid === null ? 'No bid' : `Bid ${bidStr}`}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="badge__score">{score}</div>
+          <div className="badge__bid-row">bid {bidStr}</div>
+          <div className="badge__won-row">took {tricks}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -304,19 +440,20 @@ function HandSummaryOverlay({ data, onContinue }: { data: HandSummaryData; onCon
 // ════════════════════════════════════════════
 //  GAME OVER OVERLAY
 // ════════════════════════════════════════════
-function GameOverOverlay({ scores, placements, onNewGame }: {
+function GameOverOverlay({ scores, humanRank, forfeited, medalLedger, onNewGame }: {
   scores: number[];
-  placements: number[];
+  humanRank: number;
+  forfeited: boolean;
+  medalLedger: MedalLedger;
   onNewGame: () => void;
 }) {
-  const order  = [0, 1, 2, 3].slice().sort((a, b) => scores[b]! - scores[a]!);
+  const order  = rankSeats(scores, forfeited);
   const medals = ['🥇', '🥈', '🥉', '4️⃣'];
-  const place  = placements[HUMAN]!;
 
   return (
     <div className="overlay">
       <div className="overlay-panel">
-        <h2>Game Over</h2>
+        <h2>{forfeited ? 'Forfeited' : 'Game Over'}</h2>
         <div className="podium">
           {order.map((seat, rank) => (
             <div key={seat} className={[
@@ -331,9 +468,20 @@ function GameOverOverlay({ scores, placements, onNewGame }: {
           ))}
         </div>
         <p style={{ textAlign: 'center', marginBottom: 16, fontSize: 14,
-          color: place === 2 ? '#6adb6a' : place === 0 ? 'var(--text-dim)' : 'var(--gold)' }}>
-          {place === 2 ? 'You won!' : place === 0 ? 'Better luck next time.' : 'Well played!'}
+          color: humanRank === 0 ? '#6adb6a' : humanRank >= 2 ? 'var(--text-dim)' : 'var(--gold)' }}>
+          {humanRank === 0 ? 'You won!' : humanRank === 1 ? 'Silver finish.' : forfeited ? 'White flag accepted.' : 'Better luck next time.'}
         </p>
+        <div className="medal-ledger">
+          <div className="medal-ledger__form">
+            Medal form <strong>{formatMedalForm(medalLedger.form)}</strong>
+          </div>
+          <div className="medal-ledger__counts">
+            <span>🥇 {medalLedger.gold}</span>
+            <span>🥈 {medalLedger.silver}</span>
+            <span>🥉 {medalLedger.bronze}</span>
+            <span>4th {medalLedger.fourth}</span>
+          </div>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <button className="btn btn--primary" onClick={onNewGame}>Play Again</button>
         </div>
@@ -367,19 +515,117 @@ function StartScreen({ onStart }: { onStart: () => void }) {
 // ════════════════════════════════════════════
 //  YOU BAR  (bid / took strip at bottom)
 // ════════════════════════════════════════════
-function YouBar({ gs, isActive }: { gs: GameState; isActive: boolean }) {
+function YouBar({ gs, isActive }: {
+  gs: GameState;
+  isActive: boolean;
+}) {
   const bid    = gs.bids[HUMAN];
   const tricks = gs.tricksWon[HUMAN]!;
   const score  = gs.scores[HUMAN]!;
   const bidStr = bid === null ? '?' : bid === 0 ? 'NIL' : String(bid);
+  const isBidding = gs.phase === 'bidding';
   return (
     <div className={`you-bar${isActive ? ' you-bar--active' : ''}`}>
-      <span className="you-bar__score">{score}</span>
+      {!isBidding && <span className="you-bar__score">{score}</span>}
       <span className="you-bar__sep" />
-      <span className="you-bar__stat">bid {bidStr}</span>
-      <span className="you-bar__dim">·</span>
-      <span className="you-bar__took">took {tricks}</span>
+      <span className="you-bar__stat">
+        {isBidding ? (bid === null ? 'You: no bid' : `You: bid ${bidStr}`) : `bid ${bidStr}`}
+      </span>
+      {!isBidding && (
+        <>
+          <span className="you-bar__dim">·</span>
+          <span className="you-bar__took">took {tricks}</span>
+        </>
+      )}
       {BUILD_LABEL && <span className="you-bar__time">{BUILD_LABEL}</span>}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════
+//  SETTINGS OVERLAY
+// ════════════════════════════════════════════
+function SettingsOverlay({ settings, medalLedger, onChange, onResetMedalLedger, onClose }: {
+  settings: Settings;
+  medalLedger: MedalLedger;
+  onChange: (settings: Settings) => void;
+  onResetMedalLedger: () => void;
+  onClose: () => void;
+}) {
+  const speeds: Settings['speed'][] = ['slow', 'medium', 'fast'];
+  const haptics: Settings['haptics'][] = ['off', 'normal', 'strong'];
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="overlay-panel" onClick={e => e.stopPropagation()}>
+        <h2>Settings</h2>
+
+        <div className="setting-row">
+          <div className="setting-label">Speed</div>
+          <div className="seg-ctrl">
+            {speeds.map(speed => (
+              <button
+                key={speed}
+                className={`seg-btn${settings.speed === speed ? ' seg-btn--active' : ''}`}
+                onClick={() => onChange({ ...settings, speed })}
+              >
+                {speed.charAt(0).toUpperCase() + speed.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-label">Haptics</div>
+          <div className="seg-ctrl">
+            {haptics.map(haptic => (
+              <button
+                key={haptic}
+                className={`seg-btn${settings.haptics === haptic ? ' seg-btn--active' : ''}`}
+                onClick={() => onChange({ ...settings, haptics: haptic })}
+              >
+                {haptic.charAt(0).toUpperCase() + haptic.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-label">Win at</div>
+          <div className="stepper">
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, winScore: Math.max(20, settings.winScore - 10) })}>−</button>
+            <span className="stepper__val">{settings.winScore} pts</span>
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, winScore: Math.min(500, settings.winScore + 10) })}>+</button>
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-label">Lose at</div>
+          <div className="stepper">
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, loseScore: Math.max(-500, settings.loseScore - 10) })}>−</button>
+            <span className="stepper__val">{settings.loseScore} pts</span>
+            <button className="stepper__btn" onClick={() => onChange({ ...settings, loseScore: Math.min(-10, settings.loseScore + 10) })}>+</button>
+          </div>
+        </div>
+
+        <div className="setting-row setting-row--stack">
+          <div>
+            <div className="setting-label">Medal form</div>
+            <div className="settings-medals">
+              <span>{formatMedalForm(medalLedger.form)}</span>
+              <span>🥇 {medalLedger.gold}</span>
+              <span>🥈 {medalLedger.silver}</span>
+              <span>🥉 {medalLedger.bronze}</span>
+              <span>4th {medalLedger.fourth}</span>
+            </div>
+          </div>
+          <button className="btn btn--secondary" onClick={onResetMedalLedger}>Reset</button>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+          <button className="btn btn--primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -387,7 +633,7 @@ function YouBar({ gs, isActive }: { gs: GameState; isActive: boolean }) {
 // ════════════════════════════════════════════
 //  GAME TABLE
 // ════════════════════════════════════════════
-function RulesOverlay({ onClose }: { onClose: () => void }) {
+function RulesOverlay({ settings, onClose }: { settings: Settings; onClose: () => void }) {
   return (
     <div className="overlay" onClick={onClose}>
       <div className="overlay-panel" onClick={e => e.stopPropagation()}>
@@ -399,7 +645,7 @@ function RulesOverlay({ onClose }: { onClose: () => void }) {
           <li>Bid NIL to score +50 by taking zero tricks.</li>
           <li>Spades are always trump and can't lead until broken.</li>
           <li>Highest card of the led suit wins unless trumped.</li>
-          <li>First to 40 points wins.</li>
+          <li>Game ends at {settings.winScore} or {settings.loseScore} pts.</li>
         </ul>
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
           <button className="btn btn--primary" onClick={onClose}>Got it</button>
@@ -409,15 +655,20 @@ function RulesOverlay({ onClose }: { onClose: () => void }) {
   );
 }
 
-function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
+function GameTable({ gs, pk, trickPause, settings, medalLedger, onSettingsChange, onBid, onPlay, onForfeit, onResetMedalLedger }: {
   gs: GameState;
   pk: PublicKnowledge;
   trickPause: TrickPause | null;
+  settings: Settings;
+  medalLedger: MedalLedger;
+  onSettingsChange: (settings: Settings) => void;
   onBid: (bid: number) => void;
   onPlay: (card: Card) => void;
-  onRestart: () => void;
+  onForfeit: () => void;
+  onResetMedalLedger: () => void;
 }) {
   const [showRules, setShowRules] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
   const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
   const legal       = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
@@ -425,14 +676,24 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
 
   return (
     <div className="table">
-      {showRules && <RulesOverlay onClose={() => setShowRules(false)} />}
+      {showRules && <RulesOverlay settings={settings} onClose={() => setShowRules(false)} />}
+      {showSettings && (
+        <SettingsOverlay
+          settings={settings}
+          medalLedger={medalLedger}
+          onChange={onSettingsChange}
+          onResetMedalLedger={onResetMedalLedger}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
       <div className="table__header">
         <span className="hdr__title">♠ Solo Spades</span>
-        <span className="hdr__hand">Hand {gs.handNumber + 1} · First to 40</span>
+        <span className="hdr__hand">Hand {gs.handNumber + 1} · {settings.winScore} pts</span>
         <div className="hdr__right">
-          <span className="hdr__score">You: {gs.scores[HUMAN]}</span>
+          <span className="hdr__score">Form {formatMedalForm(medalLedger.form)}</span>
+          <button className="hdr__restart-btn" onClick={() => setShowSettings(true)} aria-label="Settings" title="Settings">⚙</button>
           <button className="hdr__restart-btn" onClick={() => setShowRules(true)} aria-label="Rules">?</button>
-          <button className="hdr__restart-btn" onClick={onRestart} aria-label="New game">↺</button>
+          <button className="hdr__restart-btn" onClick={onForfeit} aria-label="Forfeit game" title="Forfeit game">⚐</button>
         </div>
       </div>
 
@@ -477,7 +738,10 @@ function GameTable({ gs, pk, trickPause, onBid, onPlay, onRestart }: {
 export default function App() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
 
+  const [settings, setSettings] = useState<Settings>(() => readSettings());
+  const settingsRef = useRef(settings);
   const rngRef = useRef<Rng | null>(null);
+  const [medalLedger, setMedalLedger] = useState<MedalLedger>(() => readMedalLedger());
   const [appState, setAppState] = useState<AppState>(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
     rngRef.current = rng;
@@ -485,11 +749,31 @@ export default function App() {
     return { tag: 'game', gs, pk, trickPause: null };
   });
 
+  useEffect(() => {
+    settingsRef.current = settings;
+    writeSettings(settings);
+  }, [settings]);
+
+  useEffect(() => {
+    writeMedalLedger(medalLedger);
+  }, [medalLedger]);
+
   const startGame = useCallback(() => {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
     rngRef.current = rng;
     const { gs, pk } = startHandState(null, rng);
     setAppState({ tag: 'game', gs, pk, trickPause: null });
+  }, []);
+
+  const handleForfeit = useCallback(() => {
+    setAppState(prev => {
+      if (prev.tag !== 'game') return prev;
+      return buildGameOverState(prev.gs.scores.slice(), true);
+    });
+  }, []);
+
+  const handleResetMedalLedger = useCallback(() => {
+    setMedalLedger(EMPTY_MEDAL_LEDGER);
   }, []);
 
   const handleBid = useCallback((bid: number) => {
@@ -538,6 +822,12 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (appState.tag !== 'game-over' || appState.counted) return;
+    setMedalLedger(prev => applyMedalResult(prev, appState.humanRank));
+    setAppState(prev => prev.tag === 'game-over' ? { ...prev, counted: true } : prev);
+  }, [appState]);
+
   // AI + trick-pause driver
   useEffect(() => {
     if (appState.tag !== 'game') return;
@@ -547,21 +837,22 @@ export default function App() {
       const id = window.setTimeout(() => {
         setAppState(prev => {
           if (prev.tag !== 'game' || prev.trickPause === null) return prev;
-          if (prev.gs.phase === 'handDone') return buildHandSummaryState(prev.gs, prev.pk, rngRef.current!);
+          if (prev.gs.phase === 'handDone') return buildHandSummaryState(prev.gs, prev.pk, rngRef.current!, settingsRef.current);
           return { ...prev, trickPause: null };
         });
-      }, TRICK_PAUSE);
+      }, SPEED_CONFIG[settingsRef.current.speed].trick);
       return () => window.clearTimeout(id);
     }
 
     if (gs.phase === 'handDone') {
-      setAppState(buildHandSummaryState(gs, pk, rngRef.current!));
+      setAppState(buildHandSummaryState(gs, pk, rngRef.current!, settingsRef.current));
       return;
     }
 
     if (gs.turn === HUMAN) return;
 
-    const delay = gs.phase === 'bidding' ? AI_BID_DELAY : AI_PLAY_DELAY;
+    const speed = settingsRef.current.speed;
+    const delay = gs.phase === 'bidding' ? SPEED_CONFIG[speed].bid : SPEED_CONFIG[speed].play;
     const id = window.setTimeout(() => {
       setAppState(prev => {
         if (prev.tag !== 'game' || prev.trickPause !== null) return prev;
@@ -610,7 +901,7 @@ export default function App() {
     const { gs, trickPause } = appState;
     const isHumanTurn = trickPause === null && gs.turn === HUMAN &&
       (gs.phase === 'bidding' || gs.phase === 'playing');
-    if (isHumanTurn && !prevIsHumanTurnRef.current) navigator.vibrate?.(100);
+    if (isHumanTurn && !prevIsHumanTurnRef.current) vibrateTurn(settingsRef.current.haptics);
     prevIsHumanTurnRef.current = isHumanTurn;
   }, [appState]);
 
@@ -640,7 +931,18 @@ export default function App() {
     return (
       <>
         {updateBanner}
-        <GameTable gs={gs} pk={pk} trickPause={trickPause} onBid={handleBid} onPlay={handlePlay} onRestart={startGame} />
+        <GameTable
+          gs={gs}
+          pk={pk}
+          trickPause={trickPause}
+          settings={settings}
+          medalLedger={medalLedger}
+          onSettingsChange={setSettings}
+          onBid={handleBid}
+          onPlay={handlePlay}
+          onForfeit={handleForfeit}
+          onResetMedalLedger={handleResetMedalLedger}
+        />
       </>
     );
   }
@@ -650,19 +952,37 @@ export default function App() {
     return (
       <>
         {updateBanner}
-        <GameTable gs={nextGs} pk={nextPk} trickPause={null} onBid={() => {}} onPlay={() => {}} onRestart={startGame} />
+        <GameTable
+          gs={nextGs}
+          pk={nextPk}
+          trickPause={null}
+          settings={settings}
+          medalLedger={medalLedger}
+          onSettingsChange={setSettings}
+          onBid={() => {}}
+          onPlay={() => {}}
+          onForfeit={handleForfeit}
+          onResetMedalLedger={handleResetMedalLedger}
+        />
         <HandSummaryOverlay data={data} onContinue={handleContinue} />
       </>
     );
   }
 
   if (appState.tag === 'game-over') {
-    const { scores, placements } = appState;
+    const { scores, humanRank, forfeited, counted } = appState;
+    const visibleLedger = counted ? medalLedger : applyMedalResult(medalLedger, humanRank);
     return (
       <>
         {updateBanner}
         <div style={{ flex: 1, background: 'var(--bg)' }}>
-          <GameOverOverlay scores={scores} placements={placements} onNewGame={startGame} />
+          <GameOverOverlay
+            scores={scores}
+            humanRank={humanRank}
+            forfeited={forfeited}
+            medalLedger={visibleLedger}
+            onNewGame={startGame}
+          />
         </div>
       </>
     );
@@ -672,7 +992,7 @@ export default function App() {
 }
 
 // ── Build hand-summary state ──────────────
-function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): AppState {
+function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng, settings: Settings): AppState {
   const bids   = gs.bids.map(b => b ?? 0);
   const result = scoreHand(bids, gs.tricksWon, gs.bags);
 
@@ -686,8 +1006,8 @@ function buildHandSummaryState(gs: GameState, pk: PublicKnowledge, rng: Rng): Ap
     bagsAfter:  result.bagsAfter.slice(),
   };
 
-  if (isGameOver(scoresAfter)) {
-    return { tag: 'game-over', scores: scoresAfter, placements: placementRewards(scoresAfter) };
+  if (scoresAfter.some(score => score >= settings.winScore || score <= settings.loseScore)) {
+    return buildGameOverState(scoresAfter);
   }
 
   const nextGs = cloneState(gs);
