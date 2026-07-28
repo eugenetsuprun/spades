@@ -13,6 +13,14 @@ import type { PublicKnowledge } from '../ai/infoset.js';
 import { emptyKnowledge, buildInfoSet, observePlay } from '../ai/infoset.js';
 import { SearchAgent } from '../ai/agents.js';
 import { Rng } from '../engine/rng.js';
+import { playHandToCompletion } from '../game/driver.js';
+import {
+  EMPTY_MEDAL_LEDGER,
+  applyMedalResult,
+  finishOutcome,
+  placementForSeat,
+} from './results.js';
+import type { FinishOutcome, MedalLedger } from './results.js';
 
 declare const __BUILD_TIME__: string;
 const BUILD_LABEL = (() => {
@@ -26,6 +34,7 @@ const SEAT_NAMES = ['You', 'East', 'North', 'West'];
 
 // ── Settings ────────────────────────────
 interface Settings {
+  playMode: 'full' | 'bidding-only';
   speed: 'slow' | 'medium' | 'fast';
   winScore: number;
   loseScore: number;
@@ -33,6 +42,7 @@ interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
+  playMode: 'full',
   speed: 'medium',
   winScore: 40,
   loseScore: -60,
@@ -67,23 +77,14 @@ interface HandSummaryData {
   bagsAfter: number[];
 }
 
-interface MedalLedger {
-  gold: number;
-  silver: number;
-  bronze: number;
-  fourth: number;
-  form: number;
-}
-
 type AppState =
   | { tag: 'start' }
-  | { tag: 'game'; gs: GameState; pk: PublicKnowledge; trickPause: TrickPause | null }
+  | { tag: 'game'; gs: GameState; pk: PublicKnowledge; trickPause: TrickPause | null; autoPlayCards: boolean }
   | { tag: 'hand-summary'; data: HandSummaryData; nextGs: GameState; nextPk: PublicKnowledge }
-  | { tag: 'game-over'; scores: number[]; humanRank: number; forfeited: boolean; counted: boolean };
+  | { tag: 'game-over'; scores: number[]; outcome: FinishOutcome; forfeited: boolean; counted: boolean };
 
 // ── Helpers ────────────────────────────
 const MEDAL_LEDGER_KEY = 'solo-spades-medal-ledger-v1';
-const EMPTY_MEDAL_LEDGER: MedalLedger = { gold: 0, silver: 0, bronze: 0, fourth: 0, form: 0 };
 const SETTINGS_KEY = 'spades-settings';
 
 function clonePk(pk: PublicKnowledge): PublicKnowledge {
@@ -96,6 +97,7 @@ function readSettings(): Settings {
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } as Settings;
     return {
+      playMode: parsed.playMode === 'bidding-only' ? 'bidding-only' : 'full',
       speed: parsed.speed in SPEED_CONFIG ? parsed.speed : DEFAULT_SETTINGS.speed,
       winScore: Number.isFinite(parsed.winScore) ? parsed.winScore : DEFAULT_SETTINGS.winScore,
       loseScore: Number.isFinite(parsed.loseScore) ? parsed.loseScore : DEFAULT_SETTINGS.loseScore,
@@ -125,6 +127,7 @@ function readMedalLedger(): MedalLedger {
       silver: Number(parsed.silver) || 0,
       bronze: Number(parsed.bronze) || 0,
       fourth: Number(parsed.fourth) || 0,
+      ties: Number(parsed.ties) || 0,
       form: Number(parsed.form) || 0,
     };
   } catch {
@@ -144,33 +147,19 @@ function rankSeats(scores: number[], forfeited = false): number[] {
   return forfeited ? order.filter(seat => seat !== HUMAN).concat(HUMAN) : order;
 }
 
-function applyMedalResult(ledger: MedalLedger, humanRank: number): MedalLedger {
-  const next = { ...ledger };
-  if (humanRank === 0) {
-    next.gold += 1;
-    next.form += 1;
-  } else if (humanRank === 1) {
-    next.silver += 1;
-  } else if (humanRank === 2) {
-    next.bronze += 1;
-    next.form -= 0.5;
-  } else {
-    next.fourth += 1;
-    next.form -= 0.5;
-  }
-  return next;
-}
-
 function formatMedalForm(value: number): string {
   const label = Number.isInteger(value) ? String(value) : value.toFixed(1);
   return value > 0 ? `+${label}` : label;
 }
 
 function buildGameOverState(scores: number[], forfeited = false): AppState {
+  const outcome: FinishOutcome = forfeited
+    ? { place: 4, tied: false, pointsDelta: -0.5 }
+    : finishOutcome(scores, HUMAN);
   return {
     tag: 'game-over',
     scores,
-    humanRank: rankSeats(scores, forfeited).indexOf(HUMAN),
+    outcome,
     forfeited,
     counted: false,
   };
@@ -195,8 +184,8 @@ function startHandState(prevGs: GameState | null, rng: Rng): { gs: GameState; pk
   return { gs, pk: emptyKnowledge() };
 }
 
-const AI_AGENTS: (SearchAgent | null)[] = [
-  null,
+const AI_AGENTS: SearchAgent[] = [
+  new SearchAgent(),
   new SearchAgent(),
   new SearchAgent(),
   new SearchAgent(),
@@ -243,6 +232,9 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
       {isBidding ? (
         <>
           <div className="badge__name">{SEAT_NAMES[seat]}</div>
+          {bid !== null && (
+            <div className="badge__score badge__score--bidding">{score} pts</div>
+          )}
           <div className={`badge__bid-status${bid === null ? ' badge__bid-status--waiting' : ''}`}>
             {bid === null ? 'No bid' : `Bid ${bidStr}`}
           </div>
@@ -295,11 +287,13 @@ function TrickArea({ gs, trickPause, isHumanPlay }: {
 // ════════════════════════════════════════════
 //  STATUS TEXT
 // ════════════════════════════════════════════
-function StatusText({ gs, trickPause, isHandDone }: {
+function StatusText({ gs, trickPause, isHandDone, autoPlayCards = false }: {
   gs: GameState;
   trickPause: TrickPause | null;
   isHandDone: boolean;
+  autoPlayCards?: boolean;
 }) {
+  if (autoPlayCards && gs.phase === 'playing') return <span>Resolving hand <ThinkingDots /></span>;
   if (isHandDone) return <span>Hand complete</span>;
   if (trickPause) return <span>{SEAT_NAMES[trickPause.winner]} takes the trick</span>;
   const turn = gs.turn;
@@ -440,36 +434,48 @@ function HandSummaryOverlay({ data, onContinue }: { data: HandSummaryData; onCon
 // ════════════════════════════════════════════
 //  GAME OVER OVERLAY
 // ════════════════════════════════════════════
-function GameOverOverlay({ scores, humanRank, forfeited, medalLedger, onNewGame }: {
+function GameOverOverlay({ scores, outcome, forfeited, medalLedger, onNewGame }: {
   scores: number[];
-  humanRank: number;
+  outcome: FinishOutcome;
   forfeited: boolean;
   medalLedger: MedalLedger;
   onNewGame: () => void;
 }) {
   const order  = rankSeats(scores, forfeited);
-  const medals = ['🥇', '🥈', '🥉', '4️⃣'];
+  const placeLabels = ['🥇', '🥈', '🥉', '4️⃣'];
+  const resultMessage = forfeited
+    ? 'White flag accepted.'
+    : outcome.tied
+      ? `Tied for ${outcome.place}${outcome.place === 1 ? 'st' : outcome.place === 2 ? 'nd' : outcome.place === 3 ? 'rd' : 'th'}.`
+      : outcome.place === 1
+        ? 'You won!'
+        : outcome.place === 2
+          ? 'Silver finish.'
+          : 'Better luck next time.';
 
   return (
     <div className="overlay">
       <div className="overlay-panel">
         <h2>{forfeited ? 'Forfeited' : 'Game Over'}</h2>
         <div className="podium">
-          {order.map((seat, rank) => (
-            <div key={seat} className={[
-              'podium__row',
-              rank === 0 ? 'podium__row--1st' : '',
-              seat === HUMAN ? 'podium__row--you' : '',
-            ].filter(Boolean).join(' ')}>
-              <span className="podium__rank">{medals[rank]}</span>
-              <span className="podium__name">{SEAT_NAMES[seat]}</span>
-              <span className="podium__score">{scores[seat]}</span>
-            </div>
-          ))}
+          {order.map((seat, index) => {
+            const place = forfeited ? (index + 1) as 1 | 2 | 3 | 4 : placementForSeat(scores, seat);
+            return (
+              <div key={seat} className={[
+                'podium__row',
+                place === 1 ? 'podium__row--1st' : '',
+                seat === HUMAN ? 'podium__row--you' : '',
+              ].filter(Boolean).join(' ')}>
+                <span className="podium__rank">{placeLabels[place - 1]}</span>
+                <span className="podium__name">{SEAT_NAMES[seat]}</span>
+                <span className="podium__score">{scores[seat]}</span>
+              </div>
+            );
+          })}
         </div>
         <p style={{ textAlign: 'center', marginBottom: 16, fontSize: 14,
-          color: humanRank === 0 ? '#6adb6a' : humanRank >= 2 ? 'var(--text-dim)' : 'var(--gold)' }}>
-          {humanRank === 0 ? 'You won!' : humanRank === 1 ? 'Silver finish.' : forfeited ? 'White flag accepted.' : 'Better luck next time.'}
+          color: outcome.place === 1 && !outcome.tied ? '#6adb6a' : outcome.place >= 3 ? 'var(--text-dim)' : 'var(--gold)' }}>
+          {resultMessage}
         </p>
         <div className="medal-ledger">
           <div className="medal-ledger__form">
@@ -480,6 +486,7 @@ function GameOverOverlay({ scores, humanRank, forfeited, medalLedger, onNewGame 
             <span>🥈 {medalLedger.silver}</span>
             <span>🥉 {medalLedger.bronze}</span>
             <span>4th {medalLedger.fourth}</span>
+            <span>Ties {medalLedger.ties}</span>
           </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -526,7 +533,7 @@ function YouBar({ gs, isActive }: {
   const isBidding = gs.phase === 'bidding';
   return (
     <div className={`you-bar${isActive ? ' you-bar--active' : ''}`}>
-      {!isBidding && <span className="you-bar__score">{score}</span>}
+      <span className="you-bar__score">{score}</span>
       <span className="you-bar__sep" />
       <span className="you-bar__stat">
         {isBidding ? (bid === null ? 'You: no bid' : `You: bid ${bidStr}`) : `bid ${bidStr}`}
@@ -559,6 +566,24 @@ function SettingsOverlay({ settings, medalLedger, onChange, onResetMedalLedger, 
     <div className="overlay" onClick={onClose}>
       <div className="overlay-panel" onClick={e => e.stopPropagation()}>
         <h2>Settings</h2>
+
+        <div className="setting-row">
+          <div className="setting-label">Play mode</div>
+          <div className="seg-ctrl">
+            <button
+              className={`seg-btn${settings.playMode === 'full' ? ' seg-btn--active' : ''}`}
+              onClick={() => onChange({ ...settings, playMode: 'full' })}
+            >
+              Full game
+            </button>
+            <button
+              className={`seg-btn${settings.playMode === 'bidding-only' ? ' seg-btn--active' : ''}`}
+              onClick={() => onChange({ ...settings, playMode: 'bidding-only' })}
+            >
+              Bidding only
+            </button>
+          </div>
+        </div>
 
         <div className="setting-row">
           <div className="setting-label">Speed</div>
@@ -617,6 +642,7 @@ function SettingsOverlay({ settings, medalLedger, onChange, onResetMedalLedger, 
               <span>🥈 {medalLedger.silver}</span>
               <span>🥉 {medalLedger.bronze}</span>
               <span>4th {medalLedger.fourth}</span>
+              <span>Ties {medalLedger.ties}</span>
             </div>
           </div>
           <button className="btn btn--secondary" onClick={onResetMedalLedger}>Reset</button>
@@ -655,10 +681,11 @@ function RulesOverlay({ settings, onClose }: { settings: Settings; onClose: () =
   );
 }
 
-function GameTable({ gs, pk, trickPause, settings, medalLedger, onSettingsChange, onBid, onPlay, onForfeit, onResetMedalLedger }: {
+function GameTable({ gs, pk, trickPause, autoPlayCards, settings, medalLedger, onSettingsChange, onBid, onPlay, onForfeit, onResetMedalLedger }: {
   gs: GameState;
   pk: PublicKnowledge;
   trickPause: TrickPause | null;
+  autoPlayCards: boolean;
   settings: Settings;
   medalLedger: MedalLedger;
   onSettingsChange: (settings: Settings) => void;
@@ -670,7 +697,7 @@ function GameTable({ gs, pk, trickPause, settings, medalLedger, onSettingsChange
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const isHumanBid  = gs.phase === 'bidding' && gs.turn === HUMAN && !trickPause;
-  const isHumanPlay = gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
+  const isHumanPlay = !autoPlayCards && gs.phase === 'playing' && gs.turn === HUMAN && !trickPause;
   const isBidding   = gs.phase === 'bidding';
   const legal       = isHumanPlay ? new Set(getLegalMoves(gs)) : new Set<Card>();
   const isHandDone  = gs.phase === 'handDone';
@@ -716,7 +743,7 @@ function GameTable({ gs, pk, trickPause, settings, medalLedger, onSettingsChange
         {/* Interactive panel: status + bid/hand + your stats at bottom */}
         <div className={`panel${isBidding ? ' panel--bidding' : ''}`}>
           <div className="status-bar">
-            <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} />
+            <StatusText gs={gs} trickPause={trickPause} isHandDone={isHandDone} autoPlayCards={autoPlayCards} />
           </div>
           {isHumanBid && <BidSelector onBid={onBid} />}
           <Hand
@@ -747,7 +774,7 @@ export default function App() {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
     rngRef.current = rng;
     const { gs, pk } = startHandState(null, rng);
-    return { tag: 'game', gs, pk, trickPause: null };
+    return { tag: 'game', gs, pk, trickPause: null, autoPlayCards: false };
   });
 
   useEffect(() => {
@@ -763,7 +790,7 @@ export default function App() {
     const rng = new Rng((Date.now() ^ Math.random() * 0xffffffff) >>> 0);
     rngRef.current = rng;
     const { gs, pk } = startHandState(null, rng);
-    setAppState({ tag: 'game', gs, pk, trickPause: null });
+    setAppState({ tag: 'game', gs, pk, trickPause: null, autoPlayCards: false });
   }, []);
 
   const handleForfeit = useCallback(() => {
@@ -781,8 +808,12 @@ export default function App() {
     setAppState(prev => {
       if (prev.tag !== 'game' || prev.gs.phase !== 'bidding' || prev.gs.turn !== HUMAN) return prev;
       const gs = cloneState(prev.gs);
+      const completesBidding = gs.bids.filter(existingBid => existingBid === null).length === 1;
       applyBid(gs, bid);
-      return { ...prev, gs };
+      const autoPlayCards = completesBidding
+        ? settingsRef.current.playMode === 'bidding-only'
+        : prev.autoPlayCards;
+      return { ...prev, gs, autoPlayCards };
     });
   }, []);
 
@@ -819,20 +850,44 @@ export default function App() {
   const handleContinue = useCallback(() => {
     setAppState(prev => {
       if (prev.tag !== 'hand-summary') return prev;
-      return { tag: 'game', gs: prev.nextGs, pk: prev.nextPk, trickPause: null };
+      return { tag: 'game', gs: prev.nextGs, pk: prev.nextPk, trickPause: null, autoPlayCards: false };
     });
   }, []);
 
   useEffect(() => {
     if (appState.tag !== 'game-over' || appState.counted) return;
-    setMedalLedger(prev => applyMedalResult(prev, appState.humanRank));
+    setMedalLedger(prev => applyMedalResult(prev, appState.outcome));
     setAppState(prev => prev.tag === 'game-over' ? { ...prev, counted: true } : prev);
   }, [appState]);
 
   // AI + trick-pause driver
   useEffect(() => {
     if (appState.tag !== 'game') return;
-    const { gs, pk, trickPause } = appState;
+    const { gs, pk, trickPause, autoPlayCards } = appState;
+
+    if (autoPlayCards && trickPause === null && gs.phase === 'playing') {
+      const id = window.setTimeout(() => {
+        setAppState(prev => {
+          if (
+            prev.tag !== 'game' ||
+            !prev.autoPlayCards ||
+            prev.trickPause !== null ||
+            prev.gs.phase !== 'playing'
+          ) return prev;
+
+          const resolvedGs = cloneState(prev.gs);
+          const resolvedPk = clonePk(prev.pk);
+          playHandToCompletion(resolvedGs, resolvedPk, AI_AGENTS);
+          return buildHandSummaryState(
+            resolvedGs,
+            resolvedPk,
+            rngRef.current!,
+            settingsRef.current,
+          );
+        });
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
 
     if (trickPause !== null) {
       const id = window.setTimeout(() => {
@@ -865,8 +920,12 @@ export default function App() {
         const info = buildInfoSet(gs, pk, seat);
 
         if (gs.phase === 'bidding') {
+          const completesBidding = gs.bids.filter(bid => bid === null).length === 1;
           applyBid(gs, AI_AGENTS[seat]!.chooseBid(info));
-          return { ...prev, gs, pk };
+          const autoPlayCards = completesBidding
+            ? settingsRef.current.playMode === 'bidding-only'
+            : prev.autoPlayCards;
+          return { ...prev, gs, pk, autoPlayCards };
         }
 
         const wasLead       = gs.trick.length === 0;
@@ -899,8 +958,8 @@ export default function App() {
   const prevIsHumanTurnRef = useRef(true);
   useEffect(() => {
     if (appState.tag !== 'game') { prevIsHumanTurnRef.current = false; return; }
-    const { gs, trickPause } = appState;
-    const isHumanTurn = trickPause === null && gs.turn === HUMAN &&
+    const { gs, trickPause, autoPlayCards } = appState;
+    const isHumanTurn = !autoPlayCards && trickPause === null && gs.turn === HUMAN &&
       (gs.phase === 'bidding' || gs.phase === 'playing');
     if (isHumanTurn && !prevIsHumanTurnRef.current) vibrateTurn(settingsRef.current.haptics);
     prevIsHumanTurnRef.current = isHumanTurn;
@@ -909,8 +968,8 @@ export default function App() {
   // Auto-play when only one legal move available
   useEffect(() => {
     if (appState.tag !== 'game') return;
-    const { gs, trickPause } = appState;
-    if (trickPause !== null || gs.phase !== 'playing' || gs.turn !== HUMAN) return;
+    const { gs, trickPause, autoPlayCards } = appState;
+    if (autoPlayCards || trickPause !== null || gs.phase !== 'playing' || gs.turn !== HUMAN) return;
     const moves = getLegalMoves(gs);
     if (moves.length !== 1) return;
     const id = window.setTimeout(() => handlePlay(moves[0]!), 350);
@@ -928,7 +987,7 @@ export default function App() {
   ) : null;
 
   if (appState.tag === 'game') {
-    const { gs, pk, trickPause } = appState;
+    const { gs, pk, trickPause, autoPlayCards } = appState;
     return (
       <>
         {updateBanner}
@@ -936,6 +995,7 @@ export default function App() {
           gs={gs}
           pk={pk}
           trickPause={trickPause}
+          autoPlayCards={autoPlayCards}
           settings={settings}
           medalLedger={medalLedger}
           onSettingsChange={setSettings}
@@ -957,6 +1017,7 @@ export default function App() {
           gs={nextGs}
           pk={nextPk}
           trickPause={null}
+          autoPlayCards={false}
           settings={settings}
           medalLedger={medalLedger}
           onSettingsChange={setSettings}
@@ -971,15 +1032,15 @@ export default function App() {
   }
 
   if (appState.tag === 'game-over') {
-    const { scores, humanRank, forfeited, counted } = appState;
-    const visibleLedger = counted ? medalLedger : applyMedalResult(medalLedger, humanRank);
+    const { scores, outcome, forfeited, counted } = appState;
+    const visibleLedger = counted ? medalLedger : applyMedalResult(medalLedger, outcome);
     return (
       <>
         {updateBanner}
         <div style={{ flex: 1, background: 'var(--bg)' }}>
           <GameOverOverlay
             scores={scores}
-            humanRank={humanRank}
+            outcome={outcome}
             forfeited={forfeited}
             medalLedger={visibleLedger}
             onNewGame={startGame}
