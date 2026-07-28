@@ -232,7 +232,7 @@ function Badge({ seat, gs, isActive }: { seat: number; gs: GameState; isActive: 
       {isBidding ? (
         <>
           <div className="badge__name">{SEAT_NAMES[seat]}</div>
-          {bid !== null && (
+          {bid !== null && (gs.handNumber > 0 || score !== 0) && (
             <div className="badge__score badge__score--bidding">{score} pts</div>
           )}
           <div className={`badge__bid-status${bid === null ? ' badge__bid-status--waiting' : ''}`}>
@@ -533,7 +533,7 @@ function YouBar({ gs, isActive }: {
   const isBidding = gs.phase === 'bidding';
   return (
     <div className={`you-bar${isActive ? ' you-bar--active' : ''}`}>
-      <span className="you-bar__score">{score}</span>
+      {(gs.handNumber > 0 || score !== 0) && <span className="you-bar__score">{score}</span>}
       <span className="you-bar__sep" />
       <span className="you-bar__stat">
         {isBidding ? (bid === null ? 'You: no bid' : `You: bid ${bidStr}`) : `bid ${bidStr}`}
