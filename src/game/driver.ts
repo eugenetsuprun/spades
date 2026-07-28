@@ -36,6 +36,25 @@ export interface GameResult {
   numHands: number;
 }
 
+// Resolve the card-play phase without pauses or UI updates. Every agent still
+// acts from its own information set, so this is equivalent to normal play
+// rather than giving the automated human seat access to hidden hands.
+export function playHandToCompletion(
+  state: GameState,
+  knowledge: PublicKnowledge,
+  agents: Agent[],
+): void {
+  while (state.phase === "playing") {
+    const seat = state.turn;
+    const isLead = state.trick.length === 0;
+    const ledBefore = state.ledSuit;
+    const info = buildInfoSet(state, knowledge, seat);
+    const card = agents[seat]!.chooseCard(info);
+    playCard(state, card);
+    observePlay(knowledge, seat, card, ledBefore, isLead);
+  }
+}
+
 function dealHand(state: GameState, rng: Rng, firstLeader: number): PublicKnowledge {
   const deck = rng.shuffle(fullDeck());
   for (let seat = 0; seat < 4; seat++) {
@@ -73,15 +92,7 @@ export function playGame(agents: Agent[], seed: number, maxHands = 200): GameRes
     }
 
     // Play.
-    while (state.phase === "playing") {
-      const seat = state.turn;
-      const isLead = state.trick.length === 0;
-      const ledBefore = state.ledSuit;
-      const info = buildInfoSet(state, knowledge, seat);
-      const card = agents[seat]!.chooseCard(info);
-      playCard(state, card); // rejects any illegal move
-      observePlay(knowledge, seat, card, ledBefore, isLead);
-    }
+    playHandToCompletion(state, knowledge, agents);
 
     // Score the hand.
     const res = scoreHand(

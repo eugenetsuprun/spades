@@ -135,7 +135,7 @@ html, body {
 .badge--you { border-color: rgba(232,184,75,0.3); }
 .badge--bidding {
   padding: 7px 6px;
-  min-height: 58px;
+  min-height: 72px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
 }
@@ -156,6 +156,8 @@ html, body {
 }
 .badge__bid-status--waiting { color: var(--text-dim); }
 .badge__score   { font-size: 20px; font-weight: 800; color: var(--gold); line-height: 1.2; }
+.badge__score--bidding { margin-top: 2px; font-size: 17px; }
+.badge__score--bidding + .badge__bid-status { margin-top: 2px; font-size: 13px; }
 .badge__bid-row { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 3px; }
 .badge__won-row { font-size: 16px; font-weight: 600; color: rgba(224,224,240,0.6); margin-top: 1px; }
 
